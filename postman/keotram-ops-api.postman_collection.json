@@ -26,7 +26,7 @@
     },
     {
       "name": "Setup – Ops tokens",
-      "description": "Chạy login theo role trước khi test Harvest Areas / Weighing Stations / Receipts. Test script lưu token vào collection variables adminAccessToken, ownerAccessToken, driverAccessToken.",
+      "description": "Chạy login theo role trước khi test Harvest Areas / Weighing Stations / Trips / Receipts. Test script lưu token vào collection variables adminAccessToken, ownerAccessToken, driverAccessToken. Sau **POST /trips** (có test script) sẽ có `tripId`.",
       "item": [
         {
           "name": "POST /auth/email/login (admin → adminAccessToken)",
@@ -769,8 +769,226 @@
       ]
     },
     {
+      "name": "Trips",
+      "description": "Vòng đời chuyến (Phase 3). Cần **Setup – Ops tokens** + `harvestAreaId`, `weighingStationId`.\n\n- Trạng thái: `planned` → **start** → `in_progress` → **complete** `completed` hoặc **cancel** `cancelled`.\n- Mỗi tài xế chỉ **một** trip `in_progress` tại một thời điểm.\n- **POST /trips** với `startNow: true` bắt đầu ngay; không thì gọi **POST /trips/:id/start**.\n- **complete** / **cancel**: driver (trip của mình), owner (khu thuộc sở hữu), admin.\n- **GET /trips**: driver = trip của mình; owner = trip thuộc khu của owner; admin = tất cả. Query: `status`, `harvestAreaId` & `driverId` (chỉ admin), `createdAtFrom` / `createdAtTo`.",
+      "item": [
+        {
+          "name": "POST /trips (driver – planned, chưa start)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.id) pm.collectionVariables.set('tripId', res.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{driverAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"harvestAreaId\": \"{{harvestAreaId}}\",\n  \"weighingStationId\": \"{{weighingStationId}}\",\n  \"estimatedDistance\": 35.5,\n  \"startNow\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/trips",
+              "host": ["{{baseUrl}}"],
+              "path": ["trips"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /trips (driver – startNow: true)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.id) pm.collectionVariables.set('tripId', res.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{driverAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"harvestAreaId\": \"{{harvestAreaId}}\",\n  \"weighingStationId\": \"{{weighingStationId}}\",\n  \"startNow\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/trips",
+              "host": ["{{baseUrl}}"],
+              "path": ["trips"]
+            },
+            "description": "Lỗi `driverAlreadyHasInProgressTrip` nếu đã có trip in_progress."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /trips/:id/start (driver)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{driverAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/trips/{{tripId}}/start",
+              "host": ["{{baseUrl}}"],
+              "path": ["trips", "{{tripId}}", "start"]
+            },
+            "description": "Trip phải đang `planned`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /trips/:id/complete (driver|owner|admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/trips/{{tripId}}/complete",
+              "host": ["{{baseUrl}}"],
+              "path": ["trips", "{{tripId}}", "complete"]
+            },
+            "description": "Đổi Bearer sang `driverAccessToken` hoặc `adminAccessToken` tuỳ role. Trip phải `in_progress`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /trips/:id/cancel (driver|owner|admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{driverAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/trips/{{tripId}}/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["trips", "{{tripId}}", "cancel"]
+            },
+            "description": "Cho phép khi trip `planned` hoặc `in_progress`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /trips (driver)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{driverAccessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/trips?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["trips"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                {
+                  "key": "status",
+                  "value": "in_progress",
+                  "description": "planned | in_progress | completed | cancelled",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /trips (owner – theo khu)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/trips?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["trips"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                {
+                  "key": "status",
+                  "value": "planned",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /trips (admin – lọc driver/khu)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/trips?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["trips"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                {
+                  "key": "harvestAreaId",
+                  "value": "{{harvestAreaId}}",
+                  "description": "Chỉ admin",
+                  "disabled": true
+                },
+                {
+                  "key": "driverId",
+                  "value": "3",
+                  "description": "Chỉ admin – id user tài xế",
+                  "disabled": true
+                },
+                {
+                  "key": "createdAtFrom",
+                  "value": "2026-01-01T00:00:00.000Z",
+                  "disabled": true
+                },
+                {
+                  "key": "createdAtTo",
+                  "value": "2026-12-31T23:59:59.999Z",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Receipts",
-      "description": "Trước khi test: **Setup – Ops tokens** (driver + owner + admin); có `harvestAreaId` và `weighingStationId` (POST harvest-areas / weighing-stations).\n\n**Phase 2:**\n- Submit **bắt buộc** ít nhất một ảnh: `imageUrls` (URL) và/hoặc `imageFileIds` (UUID sau **POST /files/upload**).\n- **GET /receipts**: driver chỉ phiếu của mình; owner theo khu sở hữu; admin tất cả. Query: `page`, `limit`, `status` (pending|approved|rejected), `receiptDateFrom`, `receiptDateTo`, `harvestAreaId` (chỉ admin).\n- **Approve** tạo `finance_records`: `revenue = weight × unit_price` của trạm. Trạm lấy từ receipt, hoặc từ trip, hoặc gửi `weighingStationId` trong body khi phiếu chưa có trạm.",
+      "description": "Trước khi test: **Setup – Ops tokens** (driver + owner + admin); có `harvestAreaId` và `weighingStationId` (POST harvest-areas / weighing-stations).\n\n**Phase 2:**\n- Submit **bắt buộc** ít nhất một ảnh: `imageUrls` (URL) và/hoặc `imageFileIds` (UUID sau **POST /files/upload**).\n- **GET /receipts**: driver chỉ phiếu của mình; owner theo khu sở hữu; admin tất cả. Query: `page`, `limit`, `status` (pending|approved|rejected), `receiptDateFrom`, `receiptDateTo`, `harvestAreaId` (chỉ admin).\n- **Approve** tạo `finance_records`: `revenue = weight × unit_price` của trạm. Trạm lấy từ receipt, hoặc từ trip, hoặc gửi `weighingStationId` trong body khi phiếu chưa có trạm.\n\n**Phase 3 (gắn trip):** Khi gửi `tripId`, trip phải `in_progress` và cùng driver + `harvestAreaId` với trip; trạm cân trên phiếu **tự lấy từ trip** (có thể bỏ `weighingStationId` hoặc gửi trùng với trip).",
       "item": [
         {
           "name": "POST /receipts (driver – imageUrls)",
@@ -835,6 +1053,39 @@
               "path": ["receipts"]
             },
             "description": "Chạy **POST /files/upload** (driver) trước; biến `uploadedFileId` lưu `file.id` từ response."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /receipts (driver – có tripId, trip in_progress)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.id) pm.collectionVariables.set('receiptId', res.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{driverAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tripId\": \"{{tripId}}\",\n  \"harvestAreaId\": \"{{harvestAreaId}}\",\n  \"weight\": 8.25,\n  \"amount\": 9900,\n  \"receiptDate\": \"{{$isoTimestamp}}\",\n  \"imageUrls\": [\"https://example.com/bill-trip.jpg\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/receipts",
+              "host": ["{{baseUrl}}"],
+              "path": ["receipts"]
+            },
+            "description": "Tạo trip **startNow: true** (hoặc start) trước. `weighingStationId` có thể bỏ — server gán theo trip."
           },
           "response": []
         },
@@ -1065,6 +1316,7 @@
     { "key": "harvestAreaId", "value": "" },
     { "key": "weighingStationId", "value": "" },
     { "key": "receiptId", "value": "" },
+    { "key": "tripId", "value": "" },
     { "key": "uploadedFileId", "value": "" }
   ]
 }

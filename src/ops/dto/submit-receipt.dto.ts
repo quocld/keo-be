@@ -34,7 +34,11 @@ export class SubmitReceiptDto {
   @IsUUID()
   harvestAreaId: string;
 
-  @ApiPropertyOptional({ example: 'b6e3b4b5-2c0f-4a9f-a8e8-4b2a9c1c7b2c' })
+  @ApiPropertyOptional({
+    example: 'b6e3b4b5-2c0f-4a9f-a8e8-4b2a9c1c7b2c',
+    description:
+      'Optional. If tripId is set, server uses the trip weighing station (must match if you send this field).',
+  })
   @IsOptional()
   @IsUUID()
   weighingStationId?: string;

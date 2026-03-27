@@ -9,6 +9,7 @@ import { TripStatusEnum } from './trip-status.enum';
 
 describe('ops-status.utils', () => {
   it('should isTripStatus accept valid values', () => {
+    expect(isTripStatus(TripStatusEnum.planned)).toBe(true);
     expect(isTripStatus(TripStatusEnum.inProgress)).toBe(true);
     expect(isTripStatus('invalid')).toBe(false);
   });

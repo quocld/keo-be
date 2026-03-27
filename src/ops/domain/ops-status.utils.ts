@@ -1,8 +1,10 @@
 import { ReceiptStatusEnum } from './receipt-status.enum';
 import { TripStatusEnum } from './trip-status.enum';
 
+const tripStatusValues = new Set<string>(Object.values(TripStatusEnum));
+
 export function isTripStatus(value: unknown): value is TripStatusEnum {
-  return Object.values(TripStatusEnum).includes(value as TripStatusEnum);
+  return typeof value === 'string' && tripStatusValues.has(value);
 }
 
 export function isReceiptStatus(value: unknown): value is ReceiptStatusEnum {

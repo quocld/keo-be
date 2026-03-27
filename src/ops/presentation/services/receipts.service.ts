@@ -18,6 +18,8 @@ import { ReceiptEntity } from '../../infrastructure/persistence/relational/entit
 import { ReceiptImageEntity } from '../../infrastructure/persistence/relational/entities/receipt-image.entity';
 import { FinanceRecordEntity } from '../../infrastructure/persistence/relational/entities/finance-record.entity';
 import { WeighingStationEntity } from '../../infrastructure/persistence/relational/entities/weighing-station.entity';
+import { TripEntity } from '../../infrastructure/persistence/relational/entities/trip.entity';
+import { TripStatusEnum } from '../../domain/trip-status.enum';
 import { OpsAuthorizationService } from './ops-authorization.service';
 import { infinityPagination } from '../../../utils/infinity-pagination';
 import { InfinityPaginationResponseDto } from '../../../utils/dto/infinity-pagination-response.dto';
@@ -42,6 +44,8 @@ export class ReceiptsService {
     private readonly receiptsRepository: Repository<ReceiptEntity>,
     @InjectRepository(WeighingStationEntity)
     private readonly weighingStationsRepository: Repository<WeighingStationEntity>,
+    @InjectRepository(TripEntity)
+    private readonly tripsRepository: Repository<TripEntity>,
     private readonly opsAuthorizationService: OpsAuthorizationService,
     private readonly filesService: FilesService,
   ) {}
@@ -134,16 +138,58 @@ export class ReceiptsService {
 
     const allImageUrls = [...resolvedFromFiles, ...imageUrlsFromClient];
 
+    let weighingStationIdToUse: string | null = dto.weighingStationId ?? null;
+    let tripIdToUse: string | null = null;
+
+    if (dto.tripId) {
+      const trip = await this.tripsRepository.findOne({
+        where: { id: dto.tripId },
+        relations: ['driver', 'harvestArea', 'weighingStation'],
+      });
+
+      if (!trip) {
+        throw new UnprocessableEntityException({ error: 'tripNotFound' });
+      }
+
+      if (Number(trip.driver.id) !== Number(actor.id)) {
+        throw new ForbiddenException({ error: 'forbidden' });
+      }
+
+      if (trip.harvestArea.id !== dto.harvestAreaId) {
+        throw new UnprocessableEntityException({
+          error: 'receiptTripHarvestMismatch',
+        });
+      }
+
+      if (trip.status !== TripStatusEnum.inProgress) {
+        throw new UnprocessableEntityException({
+          error: 'tripNotInProgressForReceipt',
+        });
+      }
+
+      if (
+        dto.weighingStationId &&
+        dto.weighingStationId !== trip.weighingStation.id
+      ) {
+        throw new UnprocessableEntityException({
+          error: 'receiptTripWeighingMismatch',
+        });
+      }
+
+      weighingStationIdToUse = trip.weighingStation.id;
+      tripIdToUse = trip.id;
+    }
+
     return this.receiptsRepository.manager.transaction(async (em) => {
       const receiptRepo = em.getRepository(ReceiptEntity);
       const imageRepo = em.getRepository(ReceiptImageEntity);
 
       const receipt = receiptRepo.create({
-        trip: dto.tripId ? ({ id: dto.tripId } as any) : null,
+        trip: tripIdToUse ? ({ id: tripIdToUse } as any) : null,
         driver: { id: actor.id } as any,
         harvestArea: { id: dto.harvestAreaId } as any,
-        weighingStation: dto.weighingStationId
-          ? ({ id: dto.weighingStationId } as any)
+        weighingStation: weighingStationIdToUse
+          ? ({ id: weighingStationIdToUse } as any)
           : null,
         weight: dto.weight.toString(),
         amount: dto.amount.toString(),
@@ -297,6 +343,19 @@ export class ReceiptsService {
           otherCost: '0',
         }),
       );
+
+      if (row.trip?.id) {
+        const tripRepo = em.getRepository(TripEntity);
+        const tripEntity = await tripRepo.findOne({
+          where: { id: row.trip.id },
+        });
+        if (tripEntity) {
+          const nextTons = Number(tripEntity.totalTons) + Number(row.weight);
+          tripEntity.totalTons = (Math.round(nextTons * 100) / 100).toFixed(2);
+          tripEntity.totalReceipts += 1;
+          await tripRepo.save(tripEntity);
+        }
+      }
 
       return receiptRepo.findOneOrFail({
         where: { id: receiptId },

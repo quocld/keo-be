@@ -3,8 +3,9 @@ import {
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
-  ManyToOne,
   JoinColumn,
+  ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -13,6 +14,7 @@ import { UserEntity } from '../../../../../users/infrastructure/persistence/rela
 import { HarvestAreaEntity } from './harvest-area.entity';
 import { WeighingStationEntity } from './weighing-station.entity';
 import { TripStatusEnum } from '../../../../domain/trip-status.enum';
+import { ReceiptEntity } from './receipt.entity';
 
 @Entity({
   name: 'trips',
@@ -75,7 +77,7 @@ export class TripEntity extends EntityRelationalHelper {
   @Column({
     type: String,
     length: 20,
-    default: TripStatusEnum.inProgress,
+    default: TripStatusEnum.planned,
   })
   status: TripStatusEnum;
 
@@ -96,4 +98,7 @@ export class TripEntity extends EntityRelationalHelper {
     type: 'timestamptz',
   })
   deletedAt: Date | null;
+
+  @OneToMany(() => ReceiptEntity, (r) => r.trip)
+  receipts: ReceiptEntity[];
 }

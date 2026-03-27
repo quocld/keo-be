@@ -10,9 +10,11 @@ import { TripEntity } from './infrastructure/persistence/relational/entities/tri
 import { HarvestAreasController } from './presentation/controllers/harvest-areas.controller';
 import { WeighingStationsController } from './presentation/controllers/weighing-stations.controller';
 import { ReceiptsController } from './presentation/controllers/receipts.controller';
+import { TripsController } from './presentation/controllers/trips.controller';
 import { HarvestAreasService } from './presentation/services/harvest-areas.service';
 import { WeighingStationsService } from './presentation/services/weighing-stations.service';
 import { ReceiptsService } from './presentation/services/receipts.service';
+import { TripsService } from './presentation/services/trips.service';
 import { OpsAuthorizationService } from './presentation/services/ops-authorization.service';
 
 @Module({
@@ -31,12 +33,14 @@ import { OpsAuthorizationService } from './presentation/services/ops-authorizati
     HarvestAreasController,
     WeighingStationsController,
     ReceiptsController,
+    TripsController,
   ],
   providers: [
     OpsAuthorizationService,
     HarvestAreasService,
     WeighingStationsService,
     ReceiptsService,
+    TripsService,
   ],
 })
 export class OpsModule {}
