@@ -56,8 +56,7 @@ async function bootstrap() {
   SwaggerModule.setup('docs', app, document);
 
   const port = configService.getOrThrow('app.port', { infer: true });
-  // Railway / Docker: must bind all interfaces; platform routes $PORT to this process.
   await app.listen(port, '0.0.0.0');
-  Logger.log(`Listening on 0.0.0.0:${port} (PORT=${process.env.PORT ?? 'unset'})`);
+  Logger.log(`Listening on 0.0.0.0:${port}`);
 }
 void bootstrap();

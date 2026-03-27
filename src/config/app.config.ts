@@ -3,12 +3,9 @@ import { AppConfig } from './app-config.type';
 import validateConfig from '.././utils/validate-config';
 import {
   IsEnum,
-  IsInt,
   IsOptional,
   IsString,
   IsUrl,
-  Max,
-  Min,
 } from 'class-validator';
 
 enum Environment {
@@ -17,16 +14,13 @@ enum Environment {
   Test = 'test',
 }
 
+/** Fixed HTTP listen port (not read from env — avoids PORT vs DATABASE_PORT confusion on Railway). */
+export const APP_HTTP_PORT = 8080;
+
 class EnvironmentVariablesValidator {
   @IsEnum(Environment)
   @IsOptional()
   NODE_ENV: Environment;
-
-  @IsInt()
-  @Min(0)
-  @Max(65535)
-  @IsOptional()
-  APP_PORT: number;
 
   @IsUrl({ require_tld: false })
   @IsOptional()
@@ -49,37 +43,6 @@ class EnvironmentVariablesValidator {
   APP_HEADER_LANGUAGE: string;
 }
 
-function resolveAppPort(): number {
-  const fromPort = process.env.PORT ? parseInt(process.env.PORT, 10) : NaN;
-  const dbPort = process.env.DATABASE_PORT
-    ? parseInt(process.env.DATABASE_PORT, 10)
-    : 5432;
-
-  if (!Number.isNaN(fromPort) && fromPort === dbPort) {
-    throw new Error(
-      'PORT must not equal DATABASE_PORT (Postgres). On Railway, delete any manual PORT on the API service — the platform injects the HTTP port. DATABASE_PORT/PGPORT is only for the database.',
-    );
-  }
-
-  if (
-    !Number.isNaN(fromPort) &&
-    fromPort === 5432 &&
-    process.env.DATABASE_TYPE === 'postgres'
-  ) {
-    throw new Error(
-      'PORT=5432 is the PostgreSQL default. Remove PORT from the API service env so Railway sets the HTTP port, or you will never pass health checks.',
-    );
-  }
-
-  if (!Number.isNaN(fromPort)) {
-    return fromPort;
-  }
-  if (process.env.APP_PORT) {
-    return parseInt(process.env.APP_PORT, 10);
-  }
-  return 3000;
-}
-
 export default registerAs<AppConfig>('app', () => {
   validateConfig(process.env, EnvironmentVariablesValidator);
 
@@ -89,9 +52,7 @@ export default registerAs<AppConfig>('app', () => {
     workingDirectory: process.env.PWD || process.cwd(),
     frontendDomain: process.env.FRONTEND_DOMAIN,
     backendDomain: process.env.BACKEND_DOMAIN ?? 'http://localhost',
-    // `PORT` is the standard env var used by Railway/Nixpacks.
-    // Prefer it over `APP_PORT` because local `.env` may ship with APP_PORT=3000.
-    port: resolveAppPort(),
+    port: APP_HTTP_PORT,
     apiPrefix: process.env.API_PREFIX || 'api',
     fallbackLanguage: process.env.APP_FALLBACK_LANGUAGE || 'en',
     headerLanguage: process.env.APP_HEADER_LANGUAGE || 'x-custom-lang',

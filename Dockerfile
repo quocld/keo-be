@@ -18,4 +18,6 @@ RUN sed -i 's/\r//g' /opt/startup.relational.dev.sh
 WORKDIR /usr/src/app
 RUN npm run build
 
+EXPOSE 8080
+
 CMD ["/opt/startup.relational.dev.sh"]

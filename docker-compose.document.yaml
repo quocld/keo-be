@@ -39,7 +39,7 @@ services:
       context: .
       dockerfile: document.Dockerfile
     ports:
-      - ${APP_PORT}:${APP_PORT}
+      - 8080:8080
 
 volumes:
   boilerplate-mongo-db:

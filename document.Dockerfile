@@ -19,4 +19,6 @@ WORKDIR /usr/src/app
 RUN if [ ! -f .env ]; then cp env-example-document .env; fi
 RUN npm run build
 
+EXPOSE 8080
+
 CMD ["/opt/startup.document.dev.sh"]
