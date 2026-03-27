@@ -14,7 +14,8 @@ export class UserSeedService {
     private repository: Repository<UserEntity>,
   ) {}
 
-  async run() {
+  /** Ensures one admin user exists (admin@example.com / secret). Idempotent. */
+  async ensureAdminUser(): Promise<void> {
     const countAdmin = await this.repository.count({
       where: {
         role: {
@@ -44,6 +45,10 @@ export class UserSeedService {
         }),
       );
     }
+  }
+
+  async run() {
+    await this.ensureAdminUser();
 
     const countOwner = await this.repository.count({
       where: {

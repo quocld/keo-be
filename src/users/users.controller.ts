@@ -16,6 +16,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiParam,
@@ -23,6 +24,7 @@ import {
 } from '@nestjs/swagger';
 import { Roles } from '../roles/roles.decorator';
 import { RoleEnum } from '../roles/roles.enum';
+import { StatusEnum } from '../statuses/statuses.enum';
 import { AuthGuard } from '@nestjs/passport';
 
 import {
@@ -49,6 +51,22 @@ export class UsersController {
 
   @ApiCreatedResponse({
     type: User,
+  })
+  @ApiBody({
+    type: CreateUserDto,
+    examples: {
+      createOwner: {
+        summary: 'Create Owner account (role id 2)',
+        value: {
+          email: 'owner@example.com',
+          password: 'secret',
+          firstName: 'Jane',
+          lastName: 'Owner',
+          role: { id: RoleEnum.owner },
+          status: { id: StatusEnum.active },
+        },
+      },
+    },
   })
   @SerializeOptions({
     groups: ['admin'],
