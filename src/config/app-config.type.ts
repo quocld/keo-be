@@ -12,4 +12,10 @@ export type AppConfig = {
   betterStackEnabled: boolean;
   betterStackSourceToken?: string;
   betterStackEndpoint?: string;
+  /** When false, skip HTTP access logging. */
+  httpLogEnabled: boolean;
+  /** Paths to skip for access logs (exact or prefix). */
+  httpLogSkipPaths: string[];
+  /** Include exception stack traces in logs when NODE_ENV is production. */
+  logStackInProduction: boolean;
 };

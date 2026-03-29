@@ -11,6 +11,8 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { useContainer } from 'class-validator';
 import { AppModule } from './app.module';
 import { BetterStackLogger } from './logging/better-stack.logger';
+import { HttpLoggingInterceptor } from './logging/http-logging.interceptor';
+import { requestIdMiddleware } from './logging/request-id.middleware';
 import validationOptions from './utils/validation-options';
 import { AllConfigType } from './config/config.type';
 import { ResolvePromisesInterceptor } from './utils/serializer.interceptor';
@@ -21,6 +23,7 @@ async function bootstrap() {
     cors: true,
   });
   app.useLogger(app.get(BetterStackLogger));
+  app.use(requestIdMiddleware);
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
   const configService = app.get(ConfigService<AllConfigType>);
 
@@ -36,6 +39,7 @@ async function bootstrap() {
   });
   app.useGlobalPipes(new ValidationPipe(validationOptions));
   app.useGlobalInterceptors(
+    app.get(HttpLoggingInterceptor),
     // ResolvePromisesInterceptor is used to resolve promises in responses because class-transformer can't do it
     // https://github.com/typestack/class-transformer/issues/549
     new ResolvePromisesInterceptor(),

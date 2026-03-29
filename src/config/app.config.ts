@@ -40,6 +40,20 @@ class EnvironmentVariablesValidator {
   @IsString()
   @IsOptional()
   BETTER_STACK_SOURCE_TOKEN: string;
+
+  @IsString()
+  @IsOptional()
+  HTTP_LOG_SKIP_PATHS: string;
+}
+
+function parseHttpLogSkipPaths(raw: string | undefined): string[] {
+  const defaults = ['/docs', '/docs-json'];
+  const extra =
+    raw
+      ?.split(',')
+      .map((s) => s.trim())
+      .filter(Boolean) ?? [];
+  return [...new Set([...defaults, ...extra])];
 }
 
 export default registerAs<AppConfig>('app', () => {
@@ -59,5 +73,8 @@ export default registerAs<AppConfig>('app', () => {
     betterStackSourceToken:
       process.env.BETTER_STACK_SOURCE_TOKEN?.trim() || undefined,
     betterStackEndpoint: process.env.BETTER_STACK_ENDPOINT?.trim() || undefined,
+    httpLogEnabled: process.env.HTTP_LOG_ENABLED !== 'false',
+    httpLogSkipPaths: parseHttpLogSkipPaths(process.env.HTTP_LOG_SKIP_PATHS),
+    logStackInProduction: process.env.LOG_STACK_IN_PRODUCTION === 'true',
   };
 });

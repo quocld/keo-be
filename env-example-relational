@@ -12,6 +12,13 @@ BETTER_STACK_SOURCE_TOKEN=
 BETTER_STACK_ENDPOINT=
 BETTER_STACK_ENABLED=
 
+# HTTP access + exception logging (request id header X-Request-Id)
+HTTP_LOG_ENABLED=
+# Comma-separated extra paths to skip for access logs (defaults include /docs,/docs-json)
+HTTP_LOG_SKIP_PATHS=
+# Set true to include stack traces in error logs when NODE_ENV=production
+LOG_STACK_IN_PRODUCTION=
+
 DATABASE_TYPE=postgres
 DATABASE_HOST=postgres
 DATABASE_PORT=5432

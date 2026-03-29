@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { UsersModule } from './users/users.module';
 import { FilesModule } from './files/files.module';
 import { AuthModule } from './auth/auth.module';
@@ -29,6 +30,8 @@ import { MongooseConfigService } from './database/mongoose-config.service';
 import { DatabaseConfig } from './database/config/database-config.type';
 import { OpsModule } from './ops/ops.module';
 import { BetterStackLogger } from './logging/better-stack.logger';
+import { HttpLoggingInterceptor } from './logging/http-logging.interceptor';
+import { HttpExceptionLoggerFilter } from './logging/http-exception-logger.filter';
 
 // <database-block>
 const infrastructureDatabaseModule = (databaseConfig() as DatabaseConfig)
@@ -96,6 +99,13 @@ const infrastructureDatabaseModule = (databaseConfig() as DatabaseConfig)
     HomeModule,
     OpsModule,
   ],
-  providers: [BetterStackLogger],
+  providers: [
+    BetterStackLogger,
+    HttpLoggingInterceptor,
+    {
+      provide: APP_FILTER,
+      useClass: HttpExceptionLoggerFilter,
+    },
+  ],
 })
 export class AppModule {}
