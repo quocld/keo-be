@@ -33,7 +33,6 @@ import { InfinityPaginationResponseDto } from '../../../utils/dto/infinity-pagin
 
 @ApiBearerAuth()
 @ApiTags('HarvestAreas')
-@Roles(RoleEnum.admin, RoleEnum.owner)
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Controller({
   path: 'harvest-areas',
@@ -43,6 +42,7 @@ export class HarvestAreasController {
   constructor(private readonly harvestAreasService: HarvestAreasService) {}
 
   @ApiCreatedResponse({ type: HarvestAreaEntity })
+  @Roles(RoleEnum.admin, RoleEnum.owner)
   @Post()
   @HttpCode(HttpStatus.CREATED)
   create(
@@ -53,6 +53,7 @@ export class HarvestAreasController {
   }
 
   @ApiOkResponse({ type: InfinityPaginationResponse(HarvestAreaEntity) })
+  @Roles(RoleEnum.admin, RoleEnum.owner, RoleEnum.driver)
   @Get()
   @HttpCode(HttpStatus.OK)
   findAll(
@@ -63,6 +64,7 @@ export class HarvestAreasController {
   }
 
   @ApiOkResponse({ type: HarvestAreaEntity })
+  @Roles(RoleEnum.admin, RoleEnum.owner, RoleEnum.driver)
   @Get(':id')
   @HttpCode(HttpStatus.OK)
   findOne(
@@ -73,6 +75,7 @@ export class HarvestAreasController {
   }
 
   @ApiOkResponse({ type: HarvestAreaEntity })
+  @Roles(RoleEnum.admin, RoleEnum.owner)
   @Patch(':id')
   @HttpCode(HttpStatus.OK)
   update(
@@ -84,6 +87,7 @@ export class HarvestAreasController {
   }
 
   @ApiNoContentResponse()
+  @Roles(RoleEnum.admin, RoleEnum.owner)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Request() request, @Param('id') id: string): Promise<void> {

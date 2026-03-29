@@ -2,8 +2,8 @@
 
 | Thuộc tính   | Giá trị                                      |
 | ------------ | -------------------------------------------- |
-| Phiên bản    | 1.0 (MVP hoàn chỉnh)                         |
-| Ngày         | 27/03/2026                                   |
+| Phiên bản    | 1.1 (bổ sung phạm vi driver – bãi – trạm)   |
+| Ngày         | 29/03/2026                                   |
 | Tác giả      | Grok (dựa trên toàn bộ yêu cầu đã trao đổi) |
 
 **Lưu ý:** Đây là mô tả phạm vi sản phẩm / tầm nhìn MVP. Đối chiếu với mã nguồn backend hiện tại xem [mục 12](#12-đối-chiếu-triển-khai-backend-repo-keo-be).
@@ -55,8 +55,8 @@ Không có OCR ở MVP (sẽ làm sau). Hiện tại dùng manual entry + chụp
 
 | Role    | Mô tả                    | App truy cập              | Quyền chính                                                                 |
 | ------- | ------------------------ | ------------------------- | ---------------------------------------------------------------------------- |
-| Driver  | Tài xế vận chuyển        | Driver App (Mobile)       | Nhập receipt, bắt đầu Trip, tracking vị trí (bắt buộc)                      |
-| Owner   | Chủ thầu / chủ bãi       | Owner App (Mobile + Web)  | Phê duyệt receipt, xem dashboard & map, quản lý khu & trạm cân              |
+| Driver  | Tài xế vận chuyển        | Driver App (Mobile)       | Nhập receipt, bắt đầu Trip, tracking vị trí (bắt buộc); **chỉ** thao tác trên bãi đã được owner gán và trạm cân thuộc owner quản lý mình *(xem mục 6)* |
+| Owner   | Chủ thầu / chủ bãi       | Owner App (Mobile + Web)  | Phê duyệt receipt, xem dashboard & map, quản lý khu & trạm cân; **gán tài xế (managed driver) vào từng bãi** khai thác                      |
 | Admin   | Quản trị hệ thống        | Admin Dashboard (Web)     | Quản lý user, override, audit log                                           |
 
 ---
@@ -95,7 +95,9 @@ Không có OCR ở MVP (sẽ làm sau). Hiện tại dùng manual entry + chụp
 
 ### 6.2 Trip management
 
-- Tạo Trip mới: chọn Harvest Area → Weighing Station (API backend: `POST /trips`, có thể `startNow` để vào luôn trạng thái đang chạy).
+- **Điều kiện tài xế:** Tài xế thuộc owner (`managed_by_owner_id`); owner phải **gán bãi** cho tài xế (bảng gán driver–bãi). Không có owner quản lý hoặc chưa gán bãi → không tạo trip / submit receipt hợp lệ.
+- **Chọn khu & trạm trên app:** Driver chỉ thấy danh sách **bãi đã được gán** và **trạm cân có `owner` trùng owner quản lý** (GET `harvest-areas`, GET `weighing-stations` — read-only).
+- Tạo Trip mới: chọn Harvest Area → Weighing Station (API backend: `POST /trips`, có thể `startNow` để vào luôn trạng thái đang chạy). Backend bắt buộc: bãi đã gán, trạm thuộc cùng owner, trạm `active`.
 - Vòng đời backend: `planned` (đã tạo, chưa start) → `in_progress` (sau `POST .../start` hoặc tạo kèm `startNow`) → `completed` hoặc `cancelled`.
 - Mỗi tài xế chỉ có **một** trip `in_progress` tại một thời điểm; có thể có nhiều trip `planned` / đã đóng trong lịch sử.
 - Kết thúc / hủy: driver; owner (khu thuộc sở hữu) và admin cũng có thể **complete** / **cancel**.
@@ -104,6 +106,7 @@ Không có OCR ở MVP (sẽ làm sau). Hiện tại dùng manual entry + chụp
 
 ### 6.3 Receipt (core)
 
+- **Phạm vi giống trip:** Phiếu phải dùng **bãi đã gán** cho driver và (nếu có trạm) trạm thuộc owner quản lý; khi có `tripId` backend kiểm tra lại để tránh dữ liệu lệch.
 - Nhập manual: weight (tấn), amount (VND), receipt_date, bill_code, notes
 - **Bắt buộc** ít nhất một ảnh bill: URL (`imageUrls`) và/hoặc file đã upload (`imageFileIds` qua module Files)
 - Harvest Area bắt buộc; Weighing Station **tùy** chuyến — nếu gắn `tripId`, hệ thống **tự lấy trạm từ trip** (phải khớp khu + driver + trip đang `in_progress`)
@@ -156,7 +159,7 @@ Không có OCR ở MVP (sẽ làm sau). Hiện tại dùng manual entry + chụp
 
 ### 7.4 Harvest area management
 
-- List / tạo / chi tiết / cập nhật / xoá mềm khu (API `harvest-areas`; admin + owner)
+- List / tạo / chi tiết / cập nhật / xoá mềm khu (API `harvest-areas`; **ghi/chỉnh/xoá:** admin + owner; **đọc:** thêm **driver** — chỉ các bãi đã được gán cho tài xế đó)
 - Google Maps: latitude, longitude, `google_place_id`, v.v. khi có
 - **Trạng thái vận hành bãi** (`status`): `inactive`, `preparing` (chuẩn bị/khảo sát), `active`, `paused`, `awaiting_renewal` (chờ chu kỳ mua cây tiếp), `completed`
 - **Diện tích** (`area_hectares`, ha); **số tấn dự kiến** (`target_tons`)
@@ -166,12 +169,13 @@ Không có OCR ở MVP (sẽ làm sau). Hiện tại dùng manual entry + chụp
 
 ### 7.5 Weighing station management
 
-- List trạm cân + Google Maps + `unit_price` (/tấn)
-- Giá vận chuyển được lấy theo trạm cân
+- List / tạo / sửa / xoá mềm trạm (API `weighing-stations`; **ghi:** admin + owner; **đọc:** thêm **driver** — chỉ trạm có owner trùng owner quản lý tài xế; trạm không gắn owner — ví dụ tạo bởi admin — driver **không** thấy)
+- Google Maps + `unit_price` (/tấn); giá vận chuyển receipt lấy theo trạm cân
 
 ### 7.6 Driver management
 
-- List driver + performance
+- List driver + performance (managed drivers qua `owner/drivers`)
+- **Gán bãi cho từng tài xế:** `GET` / `PUT .../owner/drivers/:driverId/harvest-areas` — body `harvestAreaIds: []` (UUID) **thay thế toàn bộ** tập bãi được phép; mỗi bãi phải thuộc sở hữu owner đang gọi; driver phải là managed driver của owner đó
 - Xem xe đang bận/rảnh
 
 ### 7.7 Report & alert
@@ -213,9 +217,10 @@ Không có OCR ở MVP (sẽ làm sau). Hiện tại dùng manual entry + chụp
 
 ## 11. Data model (tóm tắt các bảng chính)
 
-- `users` + `driver_profiles`
-- `harvest_areas` (Google Maps; `status` vận hành; liên hệ chủ bãi + ngày mua cây + ghi chú — xem `KEO_Ops_database.md`)
-- `weighing_stations` (có `unit_price` + Google Maps)
+- `users` + `driver_profiles` (driver có thể có `managed_by_owner_id` → owner quản lý)
+- `harvest_areas` (Google Maps; `status` vận hành; `owner_id`; liên hệ chủ bãi + ngày mua cây + ghi chú — xem `KEO_Ops_database.md`)
+- `driver_harvest_areas` (gán **driver** ↔ **bãi**; chỉ các bãi này driver được dùng trong trip/receipt và GET list/detail bãi)
+- `weighing_stations` (có `unit_price` + Google Maps + `owner_id` tùy — driver chỉ dùng trạm có owner khớp owner quản lý)
 - `trips` (`status`: planned / in_progress / completed / cancelled; tổng tấn/số phiếu approved gắn chuyến)
 - `receipts` (status: pending / approved / rejected; `trip_id` tùy chọn, ràng buộc khớp chuyến khi có)
 - `receipt_images`
@@ -235,13 +240,14 @@ Không có OCR ở MVP (sẽ làm sau). Hiện tại dùng manual entry + chụp
 | Hạng mục trong BRD                         | Trạng thái trong keo-be (backend) |
 | ------------------------------------------ | --------------------------------- |
 | Đăng ký / auth                             | Email + password + JWT (boilerplate); **không** có login OTP số điện thoại |
-| Harvest Area                               | **Có** CRUD + list/detail (admin/owner): `harvest-areas`. Trạng thái: `inactive`, `preparing`, `active`, `paused`, `awaiting_renewal`, `completed`; `area_hectares`, `target_tons` (tấn dự kiến); `site_*` (liên hệ chủ bãi, ngày mua, ghi chú) |
-| Weighing Station                           | **Có** CRUD + list (admin): `weighing-stations` |
-| Receipt submit / approve / reject          | **Có** `POST/GET /receipts` + approve/reject; owner chỉ khu của mình; **bắt buộc** ít nhất một ảnh (`imageUrls` / `imageFileIds`) |
+| Harvest Area                               | **Có** CRUD + list/detail (admin/owner): `harvest-areas`. **Driver:** chỉ GET list/detail, phạm vi **bãi đã gán** + thuộc owner quản lý. Trạng thái: `inactive`, `preparing`, `active`, `paused`, `awaiting_renewal`, `completed`; `area_hectares`, `target_tons`; `site_*` |
+| Gán driver ↔ bãi (owner)                   | **Có** `GET` / `PUT /owner/drivers/:driverId/harvest-areas` (body `harvestAreaIds`); bãi phải của owner; driver phải managed bởi owner |
+| Weighing Station                           | **Có** CRUD + list/detail (admin + **owner**): `weighing-stations`. **Driver:** chỉ GET, phạm vi trạm có `owner_id` = owner quản lý tài xế |
+| Receipt submit / approve / reject          | **Có** `POST/GET /receipts` + approve/reject; **submit (driver):** cùng rule phạm vi bãi gán + trạm/owner như trip; owner chỉ khu của mình; **bắt buộc** ít nhất một ảnh (`imageUrls` / `imageFileIds`) |
 | Ảnh bill, nhiều ảnh                        | **Có** lưu `receipt_images`; upload qua `Files` + URL client |
 | Finance khi approve                        | **Có** tạo `finance_records`, `revenue = weight × unit_price` (trạm active) |
-| Trip                                       | **Có** `GET/POST /trips`, start/complete/cancel; `planned` / `in_progress` / …; một trip `in_progress` / tài xế; complete/cancel: driver + owner (khu) + admin |
-| Receipt gắn Trip                           | **Có** `tripId` khi submit: khớp driver + khu + trip `in_progress`; trạm cân **auto** theo trip |
+| Trip                                       | **Có** `GET/POST /trips`, start/complete/cancel; **POST** yêu cầu driver có owner quản lý, **bãi đã gán**, trạm cùng owner và `active`; một trip `in_progress` / tài xế; complete/cancel: driver + owner (khu) + admin |
+| Receipt gắn Trip                           | **Có** `tripId` khi submit: khớp driver + khu + trip `in_progress`; trạm cân **auto** theo trip; backend kiểm tra lại phạm vi bãi/trạm/owner |
 | Trip `total_tons` / `total_receipts`       | **Có** cộng khi **approve** phiếu có `trip_id` |
 | Live tracking / map                        | Bảng `vehicle_locations` có trong DB; **chưa** có API ghi/đọc vị trí theo BRD |
 | Dashboard, báo cáo, alert                  | **Chưa** có API như mục 7.1, 7.7 |

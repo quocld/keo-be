@@ -26,7 +26,7 @@
     },
     {
       "name": "Setup – Ops tokens",
-      "description": "Chạy login theo role trước khi test Users / Owner drivers / Harvest Areas / Weighing Stations / Trips / Receipts. Tài khoản seed: Admin `{{adminEmail}}`, Owner `{{ownerEmail}}`, Driver `{{driverEmail}}` (mật khẩu trong biến collection). Test script lưu token vào adminAccessToken, ownerAccessToken, driverAccessToken; login owner còn lưu **ownerUserId** (`user.id`) để dùng với **POST /users** (driver + managedByOwnerId). Sau **POST /trips** (có test script) sẽ có `tripId`.",
+      "description": "Chạy login theo role trước khi test Users / Owner drivers / Harvest Areas / Weighing Stations / Trips / Receipts. Tài khoản seed: Admin `{{adminEmail}}`, Owner `{{ownerEmail}}`, Driver `{{driverEmail}}` (mật khẩu trong biến collection). Test script lưu token vào adminAccessToken, ownerAccessToken, driverAccessToken; login owner còn lưu **ownerUserId** (`user.id`) để dùng với **POST /users** (driver + managedByOwnerId).\n\n**Trip / receipt (driver):** Tài xế phải có **owner quản lý** (`managed_by_owner_id`); owner phải **PUT /owner/drivers/:id/harvest-areas** gán ít nhất một bãi (`harvestAreaId`) trước khi **POST /trips**. Trạm cân dùng trong trip phải do **chính owner đó** tạo (`POST /weighing-stations` owner), không dùng trạm admin-only (`owner_id` null). Khuyến nghị: **POST /owner/drivers** → lưu `managedDriverUserId` → tạo bãi + trạm owner → **PUT …/harvest-areas** → **login** tài xế đó → **POST /trips**.",
       "item": [
         {
           "name": "POST /auth/email/login (admin → adminAccessToken)",
@@ -460,7 +460,7 @@
     },
     {
       "name": "Owner drivers (owner only)",
-      "description": "Cần **ownerAccessToken** (Setup – login owner).\n\nOwner tạo/xem/sửa/xoá **chỉ** các tài khoản driver có `managed_by_owner_id` = chính owner đó.\n\nBiến **managedDriverUserId**: gán bằng test script ở POST (hoặc nhập tay từ response).",
+      "description": "Cần **ownerAccessToken** (Setup – login owner).\n\nOwner tạo/xem/sửa/xoá **chỉ** các tài khoản driver có `managed_by_owner_id` = chính owner đó.\n\n**Gán bãi khai thác:** `GET` / `PUT /owner/drivers/:driverId/harvest-areas` — `PUT` body `{ \"harvestAreaIds\": [\"uuid\", ...] }` thay thế toàn bộ danh sách; mảng rỗng xóa hết gán. Bãi phải thuộc owner; driver phải là managed driver của owner.\n\nBiến **managedDriverUserId**: gán bằng test script ở POST (hoặc nhập tay từ response).",
       "item": [
         {
           "name": "POST /owner/drivers",
@@ -558,12 +558,47 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "GET /owner/drivers/:driverId/harvest-areas",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/owner/drivers/{{managedDriverUserId}}/harvest-areas",
+              "host": ["{{baseUrl}}"],
+              "path": ["owner", "drivers", "{{managedDriverUserId}}", "harvest-areas"]
+            },
+            "description": "Danh sách bãi đã gán cho managed driver (chỉ bãi chưa soft-delete)."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /owner/drivers/:driverId/harvest-areas",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"harvestAreaIds\": [\"{{harvestAreaId}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/owner/drivers/{{managedDriverUserId}}/harvest-areas",
+              "host": ["{{baseUrl}}"],
+              "path": ["owner", "drivers", "{{managedDriverUserId}}", "harvest-areas"]
+            },
+            "description": "Thay thế toàn bộ gán. Cần `harvestAreaId` (tạo bãi trước). `harvestAreaIds: []` để xóa hết."
+          },
+          "response": []
         }
       ]
     },
     {
-      "name": "Harvest Areas (admin + owner)",
-      "description": "Trước khi test: chạy **Setup – Ops tokens** để lấy adminAccessToken / ownerAccessToken.\n\nAdmin thấy tất cả khu vực. Owner chỉ thấy khu vực của mình.\nPATCH/DELETE: owner chỉ được chỉnh khu vực thuộc sở hữu của mình.\n\n**Trạng thái bãi (`status`):** `inactive` | `preparing` | `active` | `paused` | `awaiting_renewal` | `completed`.\n**Diện tích / kế hoạch:** `areaHectares` (ha), `targetTons` (tấn dự kiến).\n**Chủ bãi (hợp đồng cây):** `siteContact*`, `sitePurchaseDate`, `siteNotes`.",
+      "name": "Harvest Areas (admin + owner + driver read)",
+      "description": "Trước khi test: chạy **Setup – Ops tokens** để lấy adminAccessToken / ownerAccessToken / driverAccessToken.\n\nAdmin thấy tất cả khu vực. Owner chỉ thấy khu vực của mình.\n**Driver (GET only):** chỉ các bãi **đã được owner gán** và thuộc owner quản lý tài xế; không có owner quản lý → list rỗng.\nPATCH/DELETE: owner chỉ được chỉnh khu vực thuộc sở hữu của mình.\n\n**Trạng thái bãi (`status`):** `inactive` | `preparing` | `active` | `paused` | `awaiting_renewal` | `completed`.\n**Diện tích / kế hoạch:** `areaHectares` (ha), `targetTons` (tấn dự kiến).\n**Chủ bãi (hợp đồng cây):** `siteContact*`, `sitePurchaseDate`, `siteNotes`.",
       "item": [
         {
           "name": "POST /harvest-areas (owner tự tạo)",
@@ -772,12 +807,44 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "GET /harvest-areas (list – driver, đã gán)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{driverAccessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/harvest-areas?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["harvest-areas"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "Chỉ bãi có trong `driver_harvest_areas` + `owner_id` = owner quản lý driver."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /harvest-areas/:id (detail – driver)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{driverAccessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/harvest-areas/{{harvestAreaId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["harvest-areas", "{{harvestAreaId}}"]
+            },
+            "description": "404 nếu bãi không được gán cho driver."
+          },
+          "response": []
         }
       ]
     },
     {
-      "name": "Weighing Stations (admin + owner)",
-      "description": "Chạy **Setup – Ops tokens** (admin + owner).\n\n- **Admin**: CRUD mọi trạm; trạm tạo bởi admin có `owner_id` null (trạm hệ thống).\n- **Owner**: CRUD chỉ trạm do chính họ tạo (`owner_id` = user). Không xem/sửa/xoá trạm admin bằng token owner.\n- **GET list (admin)**: query `filters` JSON có thể thêm `ownerId` (số) để lọc theo chủ trạm.",
+      "name": "Weighing Stations (admin + owner + driver read)",
+      "description": "Chạy **Setup – Ops tokens** (admin + owner + driver).\n\n- **Admin**: CRUD mọi trạm; trạm tạo bởi admin có `owner_id` null (trạm hệ thống).\n- **Owner**: CRUD chỉ trạm do chính họ tạo (`owner_id` = user). Không xem/sửa/xoá trạm admin bằng token owner.\n- **Driver (GET only):** chỉ trạm có `owner_id` = owner quản lý tài xế (trạm admin-only không hiện).\n- **GET list (admin)**: query `filters` JSON có thể thêm `ownerId` (số) để lọc theo chủ trạm.",
       "item": [
         {
           "name": "POST /weighing-stations (admin)",
@@ -948,12 +1015,44 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "GET /weighing-stations (list – driver)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{driverAccessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/weighing-stations?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["weighing-stations"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "Dùng trạm do owner tạo: biến `ownerWeighingStationId` hoặc `weighingStationId` trỏ tới trạm có owner khớp. Trạm admin (`owner_id` null) không có trong list."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /weighing-stations/:id (detail – driver)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{driverAccessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/weighing-stations/{{ownerWeighingStationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["weighing-stations", "{{ownerWeighingStationId}}"]
+            },
+            "description": "Mặc định dùng `ownerWeighingStationId` sau POST trạm owner. 404 nếu trạm không thuộc owner quản lý driver."
+          },
+          "response": []
         }
       ]
     },
     {
       "name": "Trips",
-      "description": "Vòng đời chuyến (Phase 3). Cần **Setup – Ops tokens** + `harvestAreaId`, `weighingStationId`.\n\n- Trạng thái: `planned` → **start** → `in_progress` → **complete** `completed` hoặc **cancel** `cancelled`.\n- Mỗi tài xế chỉ **một** trip `in_progress` tại một thời điểm.\n- **POST /trips** với `startNow: true` bắt đầu ngay; không thì gọi **POST /trips/:id/start**.\n- **complete** / **cancel**: driver (trip của mình), owner (khu thuộc sở hữu), admin.\n- **GET /trips**: driver = trip của mình; owner = trip thuộc khu của owner; admin = tất cả. Query: `status`, `harvestAreaId` & `driverId` (chỉ admin), `createdAtFrom` / `createdAtTo`.",
+      "description": "Vòng đời chuyến (Phase 3). Cần **Setup – Ops tokens** + `harvestAreaId`, **trạm do owner tạo** (`ownerWeighingStationId` hoặc id tương đương), và **PUT gán bãi** cho driver trước **POST /trips**.\n\n- **POST /trips (driver):** tài xế có `managed_by_owner_id`; bãi trong body phải đã gán; trạm phải cùng owner và `active`.\n- Trạng thái: `planned` → **start** → `in_progress` → **complete** `completed` hoặc **cancel** `cancelled`.\n- Mỗi tài xế chỉ **một** trip `in_progress` tại một thời điểm.\n- **POST /trips** với `startNow: true` bắt đầu ngay; không thì gọi **POST /trips/:id/start**.\n- **complete** / **cancel**: driver (trip của mình), owner (khu thuộc sở hữu), admin.\n- **GET /trips**: driver = trip của mình; owner = trip thuộc khu của owner; admin = tất cả. Query: `status`, `harvestAreaId` & `driverId` (chỉ admin), `createdAtFrom` / `createdAtTo`.",
       "item": [
         {
           "name": "POST /trips (driver – planned, chưa start)",
@@ -977,13 +1076,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"harvestAreaId\": \"{{harvestAreaId}}\",\n  \"weighingStationId\": \"{{weighingStationId}}\",\n  \"estimatedDistance\": 35.5,\n  \"startNow\": false\n}"
+              "raw": "{\n  \"harvestAreaId\": \"{{harvestAreaId}}\",\n  \"weighingStationId\": \"{{ownerWeighingStationId}}\",\n  \"estimatedDistance\": 35.5,\n  \"startNow\": false\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/trips",
               "host": ["{{baseUrl}}"],
               "path": ["trips"]
-            }
+            },
+            "description": "Dùng **ownerWeighingStationId** (sau POST trạm owner). Cần **PUT …/owner/drivers/.../harvest-areas** gán `harvestAreaId` cho driver đang login."
           },
           "response": []
         },
@@ -1009,7 +1109,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"harvestAreaId\": \"{{harvestAreaId}}\",\n  \"weighingStationId\": \"{{weighingStationId}}\",\n  \"startNow\": true\n}"
+              "raw": "{\n  \"harvestAreaId\": \"{{harvestAreaId}}\",\n  \"weighingStationId\": \"{{ownerWeighingStationId}}\",\n  \"startNow\": true\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/trips",
@@ -1171,7 +1271,7 @@
     },
     {
       "name": "Receipts",
-      "description": "Trước khi test: **Setup – Ops tokens** (driver + owner + admin); có `harvestAreaId` và `weighingStationId` (POST harvest-areas / weighing-stations).\n\n**Phase 2:**\n- Submit **bắt buộc** ít nhất một ảnh: `imageUrls` (URL) và/hoặc `imageFileIds` (UUID sau **POST /files/upload**).\n- **GET /receipts**: driver chỉ phiếu của mình; owner theo khu sở hữu; admin tất cả. Query: `page`, `limit`, `status` (pending|approved|rejected), `receiptDateFrom`, `receiptDateTo`, `harvestAreaId` (chỉ admin).\n- **Approve** tạo `finance_records`: `revenue = weight × unit_price` của trạm. Trạm lấy từ receipt, hoặc từ trip, hoặc gửi `weighingStationId` trong body khi phiếu chưa có trạm.\n\n**Phase 3 (gắn trip):** Khi gửi `tripId`, trip phải `in_progress` và cùng driver + `harvestAreaId` với trip; trạm cân trên phiếu **tự lấy từ trip** (có thể bỏ `weighingStationId` hoặc gửi trùng với trip).",
+      "description": "Trước khi test: **Setup – Ops tokens** (driver + owner + admin); có `harvestAreaId`, trạm **owner** (`ownerWeighingStationId`), và **PUT gán bãi** cho managed driver (giống flow Trip).\n\n**Phase 2:**\n- **Submit (driver):** cùng rule phạm vi bãi đã gán + trạm thuộc owner quản lý (hoặc chỉ bãi nếu không gửi trạm).\n- Submit **bắt buộc** ít nhất một ảnh: `imageUrls` (URL) và/hoặc `imageFileIds` (UUID sau **POST /files/upload**).\n- **GET /receipts**: driver chỉ phiếu của mình; owner theo khu sở hữu; admin tất cả. Query: `page`, `limit`, `status` (pending|approved|rejected), `receiptDateFrom`, `receiptDateTo`, `harvestAreaId` (chỉ admin).\n- **Approve** tạo `finance_records`: `revenue = weight × unit_price` của trạm. Trạm lấy từ receipt, hoặc từ trip, hoặc gửi `weighingStationId` trong body khi phiếu chưa có trạm.\n\n**Phase 3 (gắn trip):** Khi gửi `tripId`, trip phải `in_progress` và cùng driver + `harvestAreaId` với trip; trạm cân trên phiếu **tự lấy từ trip** (có thể bỏ `weighingStationId` hoặc gửi trùng với trip).",
       "item": [
         {
           "name": "POST /receipts (driver – imageUrls)",
@@ -1506,6 +1606,7 @@
     { "key": "driverAccessToken", "value": "" },
     { "key": "harvestAreaId", "value": "" },
     { "key": "weighingStationId", "value": "" },
+    { "key": "ownerWeighingStationId", "value": "" },
     { "key": "receiptId", "value": "" },
     { "key": "tripId", "value": "" },
     { "key": "uploadedFileId", "value": "" }

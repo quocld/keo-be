@@ -180,6 +180,12 @@ export class ReceiptsService {
       tripIdToUse = trip.id;
     }
 
+    await this.opsAuthorizationService.assertDriverHarvestAndWeighingForOps(
+      actor,
+      dto.harvestAreaId,
+      weighingStationIdToUse,
+    );
+
     return this.receiptsRepository.manager.transaction(async (em) => {
       const receiptRepo = em.getRepository(ReceiptEntity);
       const imageRepo = em.getRepository(ReceiptImageEntity);

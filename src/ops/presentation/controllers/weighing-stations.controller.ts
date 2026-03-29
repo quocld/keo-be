@@ -35,7 +35,6 @@ import {
 
 @ApiBearerAuth()
 @ApiTags('WeighingStations')
-@Roles(RoleEnum.admin, RoleEnum.owner)
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Controller({
   path: 'weighing-stations',
@@ -47,6 +46,7 @@ export class WeighingStationsController {
   ) {}
 
   @ApiCreatedResponse({ type: WeighingStationEntity })
+  @Roles(RoleEnum.admin, RoleEnum.owner)
   @Post()
   @HttpCode(HttpStatus.CREATED)
   create(
@@ -57,6 +57,7 @@ export class WeighingStationsController {
   }
 
   @ApiOkResponse({ type: InfinityPaginationResponse(WeighingStationEntity) })
+  @Roles(RoleEnum.admin, RoleEnum.owner, RoleEnum.driver)
   @Get()
   @HttpCode(HttpStatus.OK)
   findAll(
@@ -67,6 +68,7 @@ export class WeighingStationsController {
   }
 
   @ApiOkResponse({ type: WeighingStationEntity })
+  @Roles(RoleEnum.admin, RoleEnum.owner, RoleEnum.driver)
   @Get(':id')
   @HttpCode(HttpStatus.OK)
   findOne(
@@ -77,6 +79,7 @@ export class WeighingStationsController {
   }
 
   @ApiOkResponse({ type: WeighingStationEntity })
+  @Roles(RoleEnum.admin, RoleEnum.owner)
   @Patch(':id')
   @HttpCode(HttpStatus.OK)
   update(
@@ -88,6 +91,7 @@ export class WeighingStationsController {
   }
 
   @ApiNoContentResponse()
+  @Roles(RoleEnum.admin, RoleEnum.owner)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Request() request, @Param('id') id: string): Promise<void> {

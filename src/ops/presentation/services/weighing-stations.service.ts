@@ -75,7 +75,14 @@ export class WeighingStationsService {
       where.code = query.filters.code;
     }
 
-    if (this.opsAuthorizationService.isOwner(actor)) {
+    if (this.opsAuthorizationService.isDriver(actor)) {
+      const managedOwnerId =
+        await this.opsAuthorizationService.getManagedOwnerIdForDriver(actor);
+      if (managedOwnerId == null) {
+        return infinityPagination([], { page, limit });
+      }
+      where.owner = { id: managedOwnerId };
+    } else if (this.opsAuthorizationService.isOwner(actor)) {
       where.owner = { id: Number(actor.id) };
     } else if (this.opsAuthorizationService.isAdmin(actor)) {
       if (query.filters?.ownerId != null) {
@@ -107,6 +114,19 @@ export class WeighingStationsService {
 
     if (!entity) {
       throw new NotFoundException({ error: 'weighing station not found' });
+    }
+
+    if (this.opsAuthorizationService.isDriver(actor)) {
+      const managedOwnerId =
+        await this.opsAuthorizationService.getManagedOwnerIdForDriver(actor);
+      if (
+        managedOwnerId == null ||
+        entity.owner?.id == null ||
+        Number(entity.owner.id) !== managedOwnerId
+      ) {
+        throw new NotFoundException({ error: 'weighing station not found' });
+      }
+      return entity;
     }
 
     if (this.opsAuthorizationService.isOwner(actor)) {

@@ -70,6 +70,37 @@ export class HarvestAreasService {
     const limit = Math.min(query.limit ?? 10, 50);
     const skip = (page - 1) * limit;
 
+    if (this.opsAuthorizationService.isDriver(actor)) {
+      const managedOwnerId =
+        await this.opsAuthorizationService.getManagedOwnerIdForDriver(actor);
+      if (managedOwnerId == null) {
+        return infinityPagination([], { page, limit });
+      }
+
+      const qb = this.harvestAreasRepository
+        .createQueryBuilder('ha')
+        .innerJoin(
+          'driver_harvest_areas',
+          'dha',
+          'dha.harvest_area_id = ha.id AND dha.driver_id = :driverId',
+          { driverId: Number(actor.id) },
+        )
+        .leftJoinAndSelect('ha.owner', 'owner')
+        .where('ha.owner_id = :ownerId', { ownerId: managedOwnerId })
+        .orderBy('ha.createdAt', 'DESC')
+        .skip(skip)
+        .take(limit);
+
+      if (query.filters?.status) {
+        qb.andWhere('ha.status = :status', {
+          status: query.filters.status,
+        });
+      }
+
+      const data = await qb.getMany();
+      return infinityPagination(data, { page, limit });
+    }
+
     const where: FindOptionsWhere<HarvestAreaEntity> = {};
 
     if (query.filters?.status) {
@@ -97,6 +128,33 @@ export class HarvestAreasService {
   }
 
   async findOne(actor: JwtPayloadType, id: string): Promise<HarvestAreaEntity> {
+    if (this.opsAuthorizationService.isDriver(actor)) {
+      const managedOwnerId =
+        await this.opsAuthorizationService.getManagedOwnerIdForDriver(actor);
+      if (managedOwnerId == null) {
+        throw new NotFoundException({ error: 'harvest area not found' });
+      }
+
+      const entity = await this.harvestAreasRepository
+        .createQueryBuilder('ha')
+        .innerJoin(
+          'driver_harvest_areas',
+          'dha',
+          'dha.harvest_area_id = ha.id AND dha.driver_id = :driverId',
+          { driverId: Number(actor.id) },
+        )
+        .leftJoinAndSelect('ha.owner', 'owner')
+        .where('ha.id = :id', { id })
+        .andWhere('ha.owner_id = :ownerId', { ownerId: managedOwnerId })
+        .getOne();
+
+      if (!entity) {
+        throw new NotFoundException({ error: 'harvest area not found' });
+      }
+
+      return entity;
+    }
+
     const entity = await this.harvestAreasRepository.findOne({
       where: { id },
       relations: ['owner'],

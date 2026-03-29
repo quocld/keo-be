@@ -66,6 +66,12 @@ export class TripsService {
       });
     }
 
+    await this.opsAuthorizationService.assertDriverHarvestAndWeighingForOps(
+      actor,
+      dto.harvestAreaId,
+      dto.weighingStationId,
+    );
+
     const startNow = dto.startNow === true;
 
     if (startNow) {
