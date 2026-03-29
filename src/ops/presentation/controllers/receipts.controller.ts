@@ -64,7 +64,7 @@ export class ReceiptsController {
   @ApiCreatedResponse({ type: ReceiptEntity })
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Roles(RoleEnum.driver)
+  @Roles(RoleEnum.driver, RoleEnum.owner)
   submit(
     @Request() request,
     @Body() dto: SubmitReceiptDto,

@@ -1460,7 +1460,7 @@
     },
     {
       "name": "Receipts",
-      "description": "Trước khi test: **Setup – Ops tokens** (driver + owner + admin); có `harvestAreaId`, trạm **owner** (`ownerWeighingStationId`), và **PUT gán bãi** cho managed driver (giống flow Trip).\n\n**Phase 2:**\n- **Submit (driver):** cùng rule phạm vi bãi đã gán + trạm thuộc owner quản lý (hoặc chỉ bãi nếu không gửi trạm).\n- Submit **bắt buộc** ít nhất một ảnh: `imageUrls` (URL) và/hoặc `imageFileIds` (UUID sau **POST /files/upload**).\n- **GET /receipts**: driver chỉ phiếu của mình; owner theo khu sở hữu; admin tất cả. Query: `page`, `limit`, `status` (pending|approved|rejected), `receiptDateFrom`, `receiptDateTo`, `harvestAreaId` (chỉ admin).\n- **Approve** tạo `finance_records`: `revenue = weight × unit_price` của trạm. Trạm lấy từ receipt, hoặc từ trip, hoặc gửi `weighingStationId` trong body khi phiếu chưa có trạm.\n\n**Phase 3 (gắn trip):** Khi gửi `tripId`, trip phải `in_progress` và cùng driver + `harvestAreaId` với trip; trạm cân trên phiếu **tự lấy từ trip** (có thể bỏ `weighingStationId` hoặc gửi trùng với trip).",
+      "description": "Trước khi test: **Setup – Ops tokens** (driver + owner + admin); có `harvestAreaId`, trạm **owner** (`ownerWeighingStationId`), và **PUT gán bãi** cho managed driver (giống flow Trip).\n\n**Phase 2:**\n- **Submit:** **Driver** — như cũ (không gửi `driverUserId`). **Owner** — bắt buộc `driverUserId` (id user tài xế managed), bãi thuộc owner, driver đã gán bãi; trạm thuộc owner nếu gửi `weighingStationId`.\n- Submit **bắt buộc** ít nhất một ảnh: `imageUrls` (URL) và/hoặc `imageFileIds` (UUID sau **POST /files/upload**).\n- **GET /receipts**: driver chỉ phiếu của mình; owner theo khu sở hữu; admin tất cả. Query: `page`, `limit`, `status` (pending|approved|rejected), `receiptDateFrom`, `receiptDateTo`, `harvestAreaId` (chỉ admin).\n- **Approve** tạo `finance_records`: `revenue = weight × unit_price` của trạm. Trạm lấy từ receipt, hoặc từ trip, hoặc gửi `weighingStationId` trong body khi phiếu chưa có trạm.\n\n**Phase 3 (gắn trip):** Khi gửi `tripId`, trip phải `in_progress` và cùng driver + `harvestAreaId` với trip; trạm cân trên phiếu **tự lấy từ trip** (có thể bỏ `weighingStationId` hoặc gửi trùng với trip).",
       "item": [
         {
           "name": "POST /receipts (driver – imageUrls)",
@@ -1558,6 +1558,39 @@
               "path": ["receipts"]
             },
             "description": "Tạo trip **startNow: true** (hoặc start) trước. `weighingStationId` có thể bỏ — server gán theo trip."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /receipts (owner – driverUserId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.id) pm.collectionVariables.set('receiptId', res.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driverUserId\": {{managedDriverUserId}},\n  \"harvestAreaId\": \"{{harvestAreaId}}\",\n  \"weighingStationId\": \"{{ownerWeighingStationId}}\",\n  \"weight\": 11,\n  \"amount\": 13200,\n  \"receiptDate\": \"{{$isoTimestamp}}\",\n  \"imageUrls\": [\"https://example.com/bill-owner.jpg\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/receipts",
+              "host": ["{{baseUrl}}"],
+              "path": ["receipts"]
+            },
+            "description": "Owner tạo phiếu hộ tài xế: `driverUserId` = `managedDriverUserId` (sau **POST .../owner/drivers**). Đã **PUT .../harvest-areas** cho driver. Dùng trạm **owner** (`ownerWeighingStationId`). **Không** gửi `driverUserId` khi gọi bằng token driver."
           },
           "response": []
         },

@@ -259,4 +259,98 @@ describe('Ops Receipts MVP', () => {
 
     expect(adminList.status).toBe(200);
   });
+
+  it('should let owner submit receipt for managed driver (driverUserId)', async () => {
+    const suffix = Date.now();
+
+    const ownerStationResp = await request(APP_URL)
+      .post('/api/v1/weighing-stations')
+      .auth(owner1Token, { type: 'bearer' })
+      .send({
+        name: 'Owner station for owner-submit receipt',
+        code: `TRM-O-RCPT-${suffix}`,
+        latitude: 10.31,
+        longitude: 106.31,
+        formattedAddress: 'Owner submit addr',
+        unitPrice: 1300,
+      })
+      .expect(201);
+
+    const ownerWeighingStationId = ownerStationResp.body.id;
+
+    const createDriverResp = await request(APP_URL)
+      .post('/api/v1/owner/drivers')
+      .auth(owner1Token, { type: 'bearer' })
+      .send({
+        email: `owner.rcpt.driver.${suffix}@example.com`,
+        password: defaultPassword,
+        firstName: 'Rcpt',
+        lastName: 'Driver',
+      })
+      .expect(201);
+
+    const managedDriverId = createDriverResp.body.id;
+
+    await request(APP_URL)
+      .put(`/api/v1/owner/drivers/${managedDriverId}/harvest-areas`)
+      .auth(owner1Token, { type: 'bearer' })
+      .send({ harvestAreaIds: [harvestAreaId] })
+      .expect(204);
+
+    const submitResp = await request(APP_URL)
+      .post('/api/v1/receipts')
+      .auth(owner1Token, { type: 'bearer' })
+      .send({
+        driverUserId: managedDriverId,
+        harvestAreaId,
+        weighingStationId: ownerWeighingStationId,
+        weight: 8,
+        amount: 9600,
+        receiptDate: new Date().toISOString(),
+        imageUrls: ['https://example.com/owner-submitted-bill.jpg'],
+      });
+
+    expect(submitResp.status).toBe(201);
+    expect(submitResp.body.driver?.id).toBe(managedDriverId);
+    expect(submitResp.body.status).toBe('pending');
+  });
+
+  it('should require driverUserId when owner submits receipt', async () => {
+    const resp = await request(APP_URL)
+      .post('/api/v1/receipts')
+      .auth(owner1Token, { type: 'bearer' })
+      .send({
+        harvestAreaId,
+        weighingStationId,
+        weight: 1,
+        amount: 100,
+        receiptDate: new Date().toISOString(),
+        imageUrls: ['https://example.com/owner-missing-driver.jpg'],
+      });
+
+    expect(resp.status).toBe(422);
+    expect(resp.body.message?.error ?? resp.body.error).toBe(
+      'driverUserIdRequired',
+    );
+  });
+
+  it('should reject driver submit when body includes driverUserId', async () => {
+    const resp = await request(APP_URL)
+      .post('/api/v1/receipts')
+      .auth(driverToken, { type: 'bearer' })
+      .send({
+        driverUserId: 1,
+        harvestAreaId,
+        weighingStationId,
+        weight: 1,
+        amount: 100,
+        receiptDate: new Date().toISOString(),
+        imageUrls: ['https://example.com/driver-extra-field.jpg'],
+      });
+
+    expect(resp.status).toBe(422);
+    expect(resp.body.message?.error ?? resp.body.error).toBe(
+      'driverUserIdNotAllowed',
+    );
+  });
 });

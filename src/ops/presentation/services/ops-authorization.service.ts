@@ -263,4 +263,39 @@ export class OpsAuthorizationService {
       await this.assertDriverMayUseWeighingStation(actor, weighingStationId);
     }
   }
+
+  /** Owner creating a receipt on behalf of a managed driver. */
+  async assertOwnerHarvestAndWeighingForManagedDriver(
+    ownerActor: JwtPayloadType,
+    driverUserId: number,
+    harvestAreaId: string,
+    weighingStationId: string | null,
+  ): Promise<void> {
+    if (!this.isOwner(ownerActor)) {
+      throw new ForbiddenException({ error: 'forbidden' });
+    }
+
+    await this.assertOwnerOwnsHarvestArea(ownerActor, harvestAreaId);
+    await this.assertOwnerManagesDriver(ownerActor, driverUserId);
+
+    const assigned = await this.driverHarvestAreasRepository.findOne({
+      where: {
+        driverId: driverUserId,
+        harvestAreaId,
+      },
+    });
+
+    if (!assigned) {
+      throw new UnprocessableEntityException({
+        error: 'driverNotAssignedToHarvestArea',
+      });
+    }
+
+    if (weighingStationId) {
+      await this.assertAdminOrOwnsWeighingStation(
+        ownerActor,
+        weighingStationId,
+      );
+    }
+  }
 }

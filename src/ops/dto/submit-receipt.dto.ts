@@ -8,6 +8,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsDateString,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -29,6 +30,17 @@ export class SubmitReceiptDto {
   @IsOptional()
   @IsUUID()
   tripId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Required when submitting as **owner**: id of the managed driver this receipt belongs to. Omit when the caller is a driver.',
+    example: 42,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  driverUserId?: number;
 
   @ApiProperty({ example: 'a7c2f2d0-7c2e-4e44-9fd0-1d9f1b8b7a11' })
   @IsUUID()

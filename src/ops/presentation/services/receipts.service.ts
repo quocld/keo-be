@@ -111,7 +111,28 @@ export class ReceiptsService {
   }
 
   async submit(actor: JwtPayloadType, dto: SubmitReceiptDto) {
-    this.opsAuthorizationService.assertDriver(actor);
+    const isDriver = this.opsAuthorizationService.isDriver(actor);
+    const isOwner = this.opsAuthorizationService.isOwner(actor);
+
+    if (!isDriver && !isOwner) {
+      throw new ForbiddenException({ error: 'forbidden' });
+    }
+
+    if (isDriver && dto.driverUserId != null) {
+      throw new UnprocessableEntityException({
+        error: 'driverUserIdNotAllowed',
+      });
+    }
+
+    if (isOwner && dto.driverUserId == null) {
+      throw new UnprocessableEntityException({
+        error: 'driverUserIdRequired',
+      });
+    }
+
+    const driverUserIdForReceipt = isDriver
+      ? Number(actor.id)
+      : Number(dto.driverUserId);
 
     const fileIds = dto.imageFileIds?.filter(Boolean) ?? [];
     const files = await this.filesService.findByIds(fileIds);
@@ -151,7 +172,7 @@ export class ReceiptsService {
         throw new UnprocessableEntityException({ error: 'tripNotFound' });
       }
 
-      if (Number(trip.driver.id) !== Number(actor.id)) {
+      if (Number(trip.driver.id) !== driverUserIdForReceipt) {
         throw new ForbiddenException({ error: 'forbidden' });
       }
 
@@ -180,11 +201,20 @@ export class ReceiptsService {
       tripIdToUse = trip.id;
     }
 
-    await this.opsAuthorizationService.assertDriverHarvestAndWeighingForOps(
-      actor,
-      dto.harvestAreaId,
-      weighingStationIdToUse,
-    );
+    if (isDriver) {
+      await this.opsAuthorizationService.assertDriverHarvestAndWeighingForOps(
+        actor,
+        dto.harvestAreaId,
+        weighingStationIdToUse,
+      );
+    } else {
+      await this.opsAuthorizationService.assertOwnerHarvestAndWeighingForManagedDriver(
+        actor,
+        driverUserIdForReceipt,
+        dto.harvestAreaId,
+        weighingStationIdToUse,
+      );
+    }
 
     return this.receiptsRepository.manager.transaction(async (em) => {
       const receiptRepo = em.getRepository(ReceiptEntity);
@@ -192,7 +222,7 @@ export class ReceiptsService {
 
       const receipt = receiptRepo.create({
         trip: tripIdToUse ? ({ id: tripIdToUse } as any) : null,
-        driver: { id: actor.id } as any,
+        driver: { id: driverUserIdForReceipt } as any,
         harvestArea: { id: dto.harvestAreaId } as any,
         weighingStation: weighingStationIdToUse
           ? ({ id: weighingStationIdToUse } as any)

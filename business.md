@@ -2,7 +2,7 @@
 
 | Thuộc tính   | Giá trị                                      |
 | ------------ | -------------------------------------------- |
-| Phiên bản    | 1.1 (bổ sung phạm vi driver – bãi – trạm)   |
+| Phiên bản    | 1.2 (owner submit receipt hộ tài xế managed) |
 | Ngày         | 29/03/2026                                   |
 | Tác giả      | Grok (dựa trên toàn bộ yêu cầu đã trao đổi) |
 
@@ -56,7 +56,7 @@ Không có OCR ở MVP (sẽ làm sau). Hiện tại dùng manual entry + chụp
 | Role    | Mô tả                    | App truy cập              | Quyền chính                                                                 |
 | ------- | ------------------------ | ------------------------- | ---------------------------------------------------------------------------- |
 | Driver  | Tài xế vận chuyển        | Driver App (Mobile)       | Nhập receipt, bắt đầu Trip, tracking vị trí (bắt buộc); **chỉ** thao tác trên bãi đã được owner gán và trạm cân thuộc owner quản lý mình *(xem mục 6)* |
-| Owner   | Chủ thầu / chủ bãi       | Owner App (Mobile + Web)  | Phê duyệt receipt, xem dashboard & map, quản lý khu & trạm cân; **gán tài xế (managed driver) vào từng bãi** khai thác                      |
+| Owner   | Chủ thầu / chủ bãi       | Owner App (Mobile + Web)  | Phê duyệt receipt, xem dashboard & map, quản lý khu & trạm cân; **gán tài xế (managed driver) vào từng bãi** khai thác; **tạo/submit receipt hộ** tài xế managed (backend: `driverUserId`, cùng rule bãi đã gán + trạm thuộc owner) |
 | Admin   | Quản trị hệ thống        | Admin Dashboard (Web)     | Quản lý user, override, audit log                                           |
 
 ---
@@ -71,8 +71,9 @@ Không có OCR ở MVP (sẽ làm sau). Hiện tại dùng manual entry + chụp
 
 **Owner**
 
-1. Xem danh sách Pending
-2. Xem ảnh + dữ liệu → Approve / Reject (bắt buộc lý do nếu reject)
+1. *(Tuỳ chọn)* Nhập và submit receipt **thay tài xế** (chỉ cho **managed driver** đã được gán bãi; phiếu ghi nhận đúng `driver_id` của tài xế đó).
+2. Xem danh sách Pending
+3. Xem ảnh + dữ liệu → Approve / Reject (bắt buộc lý do nếu reject)
 
 **Backend**
 
@@ -106,6 +107,7 @@ Không có OCR ở MVP (sẽ làm sau). Hiện tại dùng manual entry + chụp
 
 ### 6.3 Receipt (core)
 
+- **Ai submit:** **Driver** — submit cho chính mình (token driver). **Owner** — submit qua Owner app với **`driverUserId`** = id user tài xế **managed**; bãi phải thuộc owner và tài xế phải đã được **gán bãi** đó; trạm (nếu gửi) phải là trạm **của owner**. Khi có `tripId`, trip phải thuộc **đúng** tài xế đó (`trip.driver` = `driverUserId`).
 - **Phạm vi giống trip:** Phiếu phải dùng **bãi đã gán** cho driver và (nếu có trạm) trạm thuộc owner quản lý; khi có `tripId` backend kiểm tra lại để tránh dữ liệu lệch.
 - Nhập manual: weight (tấn), amount (VND), receipt_date, bill_code, notes
 - **Bắt buộc** ít nhất một ảnh bill: URL (`imageUrls`) và/hoặc file đã upload (`imageFileIds` qua module Files)
@@ -152,6 +154,7 @@ Không có OCR ở MVP (sẽ làm sau). Hiện tại dùng manual entry + chụp
 
 ### 7.3 Receipt approval
 
+- **Tạo phiếu hộ tài xế:** `POST /receipts` với token owner + **`driverUserId`** (bắt buộc); không gửi `driverUserId` khi driver tự submit. Cùng yêu cầu ảnh bill và dữ liệu như driver; phiếu vẫn **Pending** cho tới khi owner (hoặc admin) approve/reject.
 - Danh sách Pending (filter theo ngày, khu, trạm, driver)
 - Xem ảnh bill full size
 - Approve hoặc Reject (bắt buộc nhập lý do khi reject)
@@ -245,7 +248,7 @@ Không có OCR ở MVP (sẽ làm sau). Hiện tại dùng manual entry + chụp
 | Harvest Area                               | **Có** CRUD + list/detail (admin/owner): `harvest-areas`. **Driver:** chỉ GET list/detail, phạm vi **bãi đã gán** + thuộc owner quản lý. Trạng thái: `inactive`, `preparing`, `active`, `paused`, `awaiting_renewal`, `completed`; `area_hectares`, `target_tons`; `site_*` |
 | Gán driver ↔ bãi (owner)                   | **Có** `GET` / `PUT /owner/drivers/:driverId/harvest-areas` (body `harvestAreaIds`); bãi phải của owner; driver phải managed bởi owner |
 | Weighing Station                           | **Có** CRUD + list/detail (admin + **owner**): `weighing-stations`. **Driver:** chỉ GET, phạm vi trạm có `owner_id` = owner quản lý tài xế |
-| Receipt submit / approve / reject          | **Có** `POST/GET /receipts` + approve/reject; **submit (driver):** cùng rule phạm vi bãi gán + trạm/owner như trip; owner chỉ khu của mình; **bắt buộc** ít nhất một ảnh (`imageUrls` / `imageFileIds`) |
+| Receipt submit / approve / reject          | **Có** `POST/GET /receipts` + approve/reject; **submit (driver):** cùng rule phạm vi bãi gán + trạm/owner như trip; **submit (owner):** bắt buộc `driverUserId` (managed driver + đã gán bãi + bãi/trạm thuộc owner); **bắt buộc** ít nhất một ảnh (`imageUrls` / `imageFileIds`); `GET` driver chỉ phiếu của mình, owner theo khu sở hữu |
 | Ảnh bill, nhiều ảnh                        | **Có** lưu `receipt_images`; upload qua `Files` + URL client |
 | Finance khi approve                        | **Có** tạo `finance_records`, `revenue = weight × unit_price` (trạm active) |
 | Trip                                       | **Có** `GET/POST /trips`, start/complete/cancel; **POST** yêu cầu driver có owner quản lý, **bãi đã gán**, trạm cùng owner và `active`; một trip `in_progress` / tài xế; complete/cancel: driver + owner (khu) + admin |
