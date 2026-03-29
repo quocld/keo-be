@@ -226,6 +226,8 @@ Không có OCR ở MVP (sẽ làm sau). Hiện tại dùng manual entry + chụp
 - `receipt_images`
 - `finance_records`
 - `vehicle_locations` (tracking realtime; trong một số tài liệu gọi là driver locations)
+- `vehicles` (`owner_id`, biển số unique, `assigned_driver_id` unique nullable — owner gán tài xế managed)
+- `vehicle_expenses` (chi phí theo xe: `repair` / `fuel` / `other`, số tiền, `occurred_at`)
 - `audit_logs`
 - `notifications`
 
@@ -254,5 +256,7 @@ Không có OCR ở MVP (sẽ làm sau). Hiện tại dùng manual entry + chụp
 | Audit log, notifications                   | Bảng có trong DB; **chưa** có service/API đầy đủ theo BRD |
 | Duplicate `bill_code`, anti-fraud nâng cao | **Chưa** rule kiểm tra trùng |
 | Admin user CRUD                            | **Có** (module Users, role admin) — một phần mục 8 |
+| Vehicles + chi phí xe                     | **Có** `vehicles`: CRUD admin + owner (admin tạo cần `ownerId`); GET driver chỉ xe đang gán. **Gán xe:** `PUT /owner/drivers/:driverId/vehicle` (`vehicleId` hoặc `null`); `GET` cùng path trả **200** + xe hoặc **204** nếu chưa gán. **Chi phí:** `POST/GET/PATCH/DELETE` `/vehicles/:vehicleId/expenses` (admin + owner của xe). Đồng bộ `driver_profiles.vehicle_plate` khi gán / xoá mềm xe |
+| Trip / receipt gắn `vehicle_id`            | **Chưa** (báo cáo theo xe có thể bổ sung sau) |
 
 *Việc còn lại điển hình: API tracking, dashboard aggregate, audit/notifications, rule trùng `bill_code`, login OTP.*

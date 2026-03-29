@@ -26,7 +26,7 @@
     },
     {
       "name": "Setup – Ops tokens",
-      "description": "Chạy login theo role trước khi test Users / Owner drivers / Harvest Areas / Weighing Stations / Trips / Receipts. Tài khoản seed: Admin `{{adminEmail}}`, Owner `{{ownerEmail}}`, Driver `{{driverEmail}}` (mật khẩu trong biến collection). Test script lưu token vào adminAccessToken, ownerAccessToken, driverAccessToken; login owner còn lưu **ownerUserId** (`user.id`) để dùng với **POST /users** (driver + managedByOwnerId).\n\n**Trip / receipt (driver):** Tài xế phải có **owner quản lý** (`managed_by_owner_id`); owner phải **PUT /owner/drivers/:id/harvest-areas** gán ít nhất một bãi (`harvestAreaId`) trước khi **POST /trips**. Trạm cân dùng trong trip phải do **chính owner đó** tạo (`POST /weighing-stations` owner), không dùng trạm admin-only (`owner_id` null). Khuyến nghị: **POST /owner/drivers** → lưu `managedDriverUserId` → tạo bãi + trạm owner → **PUT …/harvest-areas** → **login** tài xế đó → **POST /trips**.",
+      "description": "Chạy login theo role trước khi test Users / Owner drivers / Harvest Areas / Weighing Stations / Vehicles / Trips / Receipts. Tài khoản seed: Admin `{{adminEmail}}`, Owner `{{ownerEmail}}`, Driver `{{driverEmail}}` (mật khẩu trong biến collection). Test script lưu token vào adminAccessToken, ownerAccessToken, driverAccessToken; login owner còn lưu **ownerUserId** (`user.id`) để dùng với **POST /users** (driver + managedByOwnerId).\n\n**Trip / receipt (driver):** Tài xế phải có **owner quản lý** (`managed_by_owner_id`); owner phải **PUT /owner/drivers/:id/harvest-areas** gán ít nhất một bãi (`harvestAreaId`) trước khi **POST /trips**. Trạm cân dùng trong trip phải do **chính owner đó** tạo (`POST /weighing-stations` owner), không dùng trạm admin-only (`owner_id` null). Khuyến nghị: **POST /owner/drivers** → lưu `managedDriverUserId` → tạo bãi + trạm owner → **PUT …/harvest-areas** → **login** tài xế đó → **POST /trips**.",
       "item": [
         {
           "name": "POST /auth/email/login (admin → adminAccessToken)",
@@ -1051,6 +1051,195 @@
       ]
     },
     {
+      "name": "Vehicles (admin + owner + driver read)",
+      "description": "Cần **Setup – Ops tokens**. **Admin** tạo xe phải gửi `ownerId` (user id chủ thầu). **Owner** tạo xe tự gắn `owner_id`. **Driver** chỉ GET list/detail xe **đang được gán** (`assigned_driver_id`).\n\n**Gán xe:** `PUT /owner/drivers/:driverId/vehicle` body `{ \"vehicleId\": \"<uuid>\" }` hoặc `{ \"vehicleId\": null }` để bỏ gán. `GET` cùng path: **200** nếu có xe, **204** nếu chưa gán.\n\n**Chi phí:** `repair` | `fuel` | `other` — CRUD dưới `/vehicles/:vehicleId/expenses` (admin + owner của xe).",
+      "item": [
+        {
+          "name": "POST /vehicles (admin + ownerId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.id) pm.collectionVariables.set('vehicleId', res.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"51A-{{$timestamp}}\",\n  \"name\": \"Xe admin tạo cho owner\",\n  \"ownerId\": {{ownerUserId}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/vehicles",
+              "host": ["{{baseUrl}}"],
+              "path": ["vehicles"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /vehicles (owner – tự fleet)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"51B-{{$timestamp}}\",\n  \"name\": \"Xe owner\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/vehicles",
+              "host": ["{{baseUrl}}"],
+              "path": ["vehicles"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /vehicles (list)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/vehicles?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["vehicles"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /vehicles/:id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/vehicles/{{vehicleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["vehicles", "{{vehicleId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /owner/drivers/:driverId/vehicle (gán xe)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicleId\": \"{{vehicleId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/owner/drivers/{{managedDriverUserId}}/vehicle",
+              "host": ["{{baseUrl}}"],
+              "path": ["owner", "drivers", "{{managedDriverUserId}}", "vehicle"]
+            },
+            "description": "Driver phải là managed driver của owner; xe phải có `owner_id` = owner đang gọi."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /owner/drivers/:driverId/vehicle",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/owner/drivers/{{managedDriverUserId}}/vehicle",
+              "host": ["{{baseUrl}}"],
+              "path": ["owner", "drivers", "{{managedDriverUserId}}", "vehicle"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /vehicles/:vehicleId/expenses",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.id) pm.collectionVariables.set('vehicleExpenseId', res.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expenseType\": \"fuel\",\n  \"amount\": 500000,\n  \"occurredAt\": \"2026-03-15T10:00:00.000Z\",\n  \"notes\": \"Đổ dầu\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/vehicles/{{vehicleId}}/expenses",
+              "host": ["{{baseUrl}}"],
+              "path": ["vehicles", "{{vehicleId}}", "expenses"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /vehicles/:vehicleId/expenses",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/vehicles/{{vehicleId}}/expenses?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["vehicles", "{{vehicleId}}", "expenses"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /vehicles (list – driver)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{driverAccessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/vehicles?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["vehicles"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "Chỉ xe đang gán cho tài xế đăng nhập (0 hoặc 1 phần tử)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Trips",
       "description": "Vòng đời chuyến (Phase 3). Cần **Setup – Ops tokens** + `harvestAreaId`, **trạm do owner tạo** (`ownerWeighingStationId` hoặc id tương đương), và **PUT gán bãi** cho driver trước **POST /trips**.\n\n- **POST /trips (driver):** tài xế có `managed_by_owner_id`; bãi trong body phải đã gán; trạm phải cùng owner và `active`.\n- Trạng thái: `planned` → **start** → `in_progress` → **complete** `completed` hoặc **cancel** `cancelled`.\n- Mỗi tài xế chỉ **một** trip `in_progress` tại một thời điểm.\n- **POST /trips** với `startNow: true` bắt đầu ngay; không thì gọi **POST /trips/:id/start**.\n- **complete** / **cancel**: driver (trip của mình), owner (khu thuộc sở hữu), admin.\n- **GET /trips**: driver = trip của mình; owner = trip thuộc khu của owner; admin = tất cả. Query: `status`, `harvestAreaId` & `driverId` (chỉ admin), `createdAtFrom` / `createdAtTo`.",
       "item": [
@@ -1609,6 +1798,8 @@
     { "key": "ownerWeighingStationId", "value": "" },
     { "key": "receiptId", "value": "" },
     { "key": "tripId", "value": "" },
-    { "key": "uploadedFileId", "value": "" }
+    { "key": "uploadedFileId", "value": "" },
+    { "key": "vehicleId", "value": "" },
+    { "key": "vehicleExpenseId", "value": "" }
   ]
 }

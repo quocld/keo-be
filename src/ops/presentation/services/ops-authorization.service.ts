@@ -11,6 +11,7 @@ import { UserEntity } from '../../../users/infrastructure/persistence/relational
 import { DriverHarvestAreaEntity } from '../../infrastructure/persistence/relational/entities/driver-harvest-area.entity';
 import { HarvestAreaEntity } from '../../infrastructure/persistence/relational/entities/harvest-area.entity';
 import { WeighingStationEntity } from '../../infrastructure/persistence/relational/entities/weighing-station.entity';
+import { VehicleEntity } from '../../infrastructure/persistence/relational/entities/vehicle.entity';
 
 @Injectable()
 export class OpsAuthorizationService {
@@ -23,6 +24,8 @@ export class OpsAuthorizationService {
     private readonly usersRepository: Repository<UserEntity>,
     @InjectRepository(DriverHarvestAreaEntity)
     private readonly driverHarvestAreasRepository: Repository<DriverHarvestAreaEntity>,
+    @InjectRepository(VehicleEntity)
+    private readonly vehiclesRepository: Repository<VehicleEntity>,
   ) {}
 
   isAdmin(actor: JwtPayloadType): boolean {
@@ -93,6 +96,30 @@ export class OpsAuthorizationService {
     const owned = await this.weighingStationsRepository.findOne({
       where: {
         id: weighingStationId,
+        owner: { id: Number(actor.id) },
+      },
+    });
+
+    if (!owned) {
+      throw new ForbiddenException({ error: 'forbidden' });
+    }
+  }
+
+  async assertAdminOrOwnsVehicle(
+    actor: JwtPayloadType,
+    vehicleId: string,
+  ): Promise<void> {
+    if (this.isAdmin(actor)) {
+      return;
+    }
+
+    if (!this.isOwner(actor)) {
+      throw new ForbiddenException({ error: 'forbidden' });
+    }
+
+    const owned = await this.vehiclesRepository.findOne({
+      where: {
+        id: vehicleId,
         owner: { id: Number(actor.id) },
       },
     });
