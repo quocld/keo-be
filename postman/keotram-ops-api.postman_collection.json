@@ -1460,7 +1460,7 @@
     },
     {
       "name": "Receipts",
-      "description": "Trước khi test: **Setup – Ops tokens** (driver + owner + admin); có `harvestAreaId`, trạm **owner** (`ownerWeighingStationId`), và **PUT gán bãi** cho managed driver (giống flow Trip).\n\n**Phase 2:**\n- **Submit:** **Driver** — như cũ (không gửi `driverUserId`). **Owner** — bắt buộc `driverUserId` (id user tài xế managed), bãi thuộc owner, driver đã gán bãi; trạm thuộc owner nếu gửi `weighingStationId`.\n- Submit **bắt buộc** ít nhất một ảnh: `imageUrls` (URL) và/hoặc `imageFileIds` (UUID sau **POST /files/upload**).\n- **GET /receipts**: driver chỉ phiếu của mình; owner theo khu sở hữu; admin tất cả. Query: `page`, `limit`, `status` (pending|approved|rejected), `receiptDateFrom`, `receiptDateTo`, `harvestAreaId` (chỉ admin).\n- **Approve** tạo `finance_records`: `revenue = weight × unit_price` của trạm. Trạm lấy từ receipt, hoặc từ trip, hoặc gửi `weighingStationId` trong body khi phiếu chưa có trạm.\n\n**Phase 3 (gắn trip):** Khi gửi `tripId`, trip phải `in_progress` và cùng driver + `harvestAreaId` với trip; trạm cân trên phiếu **tự lấy từ trip** (có thể bỏ `weighingStationId` hoặc gửi trùng với trip).",
+      "description": "Trước khi test: **Setup – Ops tokens** (driver + owner + admin); có `harvestAreaId`, trạm **owner** (`ownerWeighingStationId`), và **PUT gán bãi** cho managed driver (giống flow Trip).\n\n**Phase 2:**\n- **Submit:** **Driver** — như cũ (không gửi `driverUserId`). **Owner** — bắt buộc `driverUserId` (id user tài xế managed), bãi thuộc owner, driver đã gán bãi; trạm thuộc owner nếu gửi `weighingStationId`.\n- Submit **bắt buộc** ít nhất một ảnh: `imageUrls` (URL) và/hoặc `imageFileIds` (UUID sau **POST /files/upload**).\n- **GET /receipts**: driver chỉ phiếu của mình; owner theo khu sở hữu; admin tất cả. Query: `page`, `limit`, `status` (pending|approved|rejected), `receiptDateFrom`, `receiptDateTo`, `harvestAreaId` (chỉ admin).\n- **GET /receipts/:id**: chi tiết một phiếu (cùng phạm vi quyền; sai quyền hoặc không tồn tại → 404).\n- **Approve** tạo `finance_records`: `revenue = weight × unit_price` của trạm. Trạm lấy từ receipt, hoặc từ trip, hoặc gửi `weighingStationId` trong body khi phiếu chưa có trạm.\n\n**Phase 3 (gắn trip):** Khi gửi `tripId`, trip phải `in_progress` và cùng driver + `harvestAreaId` với trip; trạm cân trên phiếu **tự lấy từ trip** (có thể bỏ `weighingStationId` hoặc gửi trùng với trip).",
       "item": [
         {
           "name": "POST /receipts (driver – imageUrls)",
@@ -1684,6 +1684,22 @@
                 }
               ]
             }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /receipts/:id (chi tiết)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/receipts/{{receiptId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["receipts", "{{receiptId}}"]
+            },
+            "description": "UUID trong path. Driver / owner (khu) / admin — cùng rule với list. Gán `receiptId` từ POST submit hoặc GET list. 404 nếu không thuộc quyền hoặc không có phiếu."
           },
           "response": []
         },

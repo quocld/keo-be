@@ -353,4 +353,54 @@ describe('Ops Receipts MVP', () => {
       'driverUserIdNotAllowed',
     );
   });
+
+  it('should GET receipt by id for driver, owner (same harvest), admin; 404 for other owner', async () => {
+    const submitResp = await request(APP_URL)
+      .post('/api/v1/receipts')
+      .auth(driverToken, { type: 'bearer' })
+      .send({
+        harvestAreaId,
+        weighingStationId,
+        weight: 3.5,
+        amount: 4200,
+        receiptDate: new Date().toISOString(),
+        imageUrls: ['https://example.com/bill-detail-get.jpg'],
+      })
+      .expect(201);
+
+    const rid = submitResp.body.id as string;
+
+    const driverGet = await request(APP_URL)
+      .get(`/api/v1/receipts/${rid}`)
+      .auth(driverToken, { type: 'bearer' })
+      .expect(200);
+
+    expect(driverGet.body.id).toBe(rid);
+    expect(driverGet.body.images?.length).toBeGreaterThanOrEqual(1);
+
+    await request(APP_URL)
+      .get(`/api/v1/receipts/${rid}`)
+      .auth(owner1Token, { type: 'bearer' })
+      .expect(200);
+
+    await request(APP_URL)
+      .get(`/api/v1/receipts/${rid}`)
+      .auth(adminToken, { type: 'bearer' })
+      .expect(200);
+
+    await request(APP_URL)
+      .get(`/api/v1/receipts/${rid}`)
+      .auth(owner2Token, { type: 'bearer' })
+      .expect(404);
+
+    await request(APP_URL)
+      .get('/api/v1/receipts/00000000-0000-0000-0000-000000000000')
+      .auth(adminToken, { type: 'bearer' })
+      .expect(404);
+
+    await request(APP_URL)
+      .get('/api/v1/receipts/not-a-uuid')
+      .auth(adminToken, { type: 'bearer' })
+      .expect(400);
+  });
 });

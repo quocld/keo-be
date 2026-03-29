@@ -110,6 +110,61 @@ export class ReceiptsService {
     return infinityPagination(data, { page, limit });
   }
 
+  async findOne(
+    actor: JwtPayloadType,
+    receiptId: string,
+  ): Promise<ReceiptEntity> {
+    if (
+      !this.opsAuthorizationService.isDriver(actor) &&
+      !this.opsAuthorizationService.isOwner(actor) &&
+      !this.opsAuthorizationService.isAdmin(actor)
+    ) {
+      throw new ForbiddenException({ error: 'forbidden' });
+    }
+
+    const receipt = await this.receiptsRepository.findOne({
+      where: { id: receiptId },
+      relations: [
+        'images',
+        'harvestArea',
+        'weighingStation',
+        'driver',
+        'financeRecord',
+        'trip',
+        'approvedBy',
+      ],
+    });
+
+    if (!receipt) {
+      throw new NotFoundException({ error: 'receiptNotFound' });
+    }
+
+    if (this.opsAuthorizationService.isAdmin(actor)) {
+      return receipt;
+    }
+
+    if (this.opsAuthorizationService.isDriver(actor)) {
+      if (Number(receipt.driver.id) !== Number(actor.id)) {
+        throw new NotFoundException({ error: 'receiptNotFound' });
+      }
+      return receipt;
+    }
+
+    try {
+      await this.opsAuthorizationService.assertOwnerOwnsHarvestArea(
+        actor,
+        receipt.harvestArea.id,
+      );
+    } catch (e) {
+      if (e instanceof ForbiddenException) {
+        throw new NotFoundException({ error: 'receiptNotFound' });
+      }
+      throw e;
+    }
+
+    return receipt;
+  }
+
   async submit(actor: JwtPayloadType, dto: SubmitReceiptDto) {
     const isDriver = this.opsAuthorizationService.isDriver(actor);
     const isOwner = this.opsAuthorizationService.isOwner(actor);

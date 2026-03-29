@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   Request,
@@ -59,6 +60,17 @@ export class ReceiptsController {
     @Query() query: QueryReceiptDto,
   ): Promise<InfinityPaginationResponseDto<ReceiptEntity>> {
     return this.receiptsService.findMany(request.user, query);
+  }
+
+  @ApiOkResponse({ type: ReceiptEntity })
+  @Get(':id')
+  @HttpCode(HttpStatus.OK)
+  @Roles(RoleEnum.driver, RoleEnum.owner, RoleEnum.admin)
+  findOne(
+    @Request() request,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ReceiptEntity> {
+    return this.receiptsService.findOne(request.user, id);
   }
 
   @ApiCreatedResponse({ type: ReceiptEntity })
