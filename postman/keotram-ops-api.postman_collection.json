@@ -1720,7 +1720,7 @@
     },
     {
       "name": "Files",
-      "description": "Upload JWT: **driverAccessToken** khi gắn ảnh phiếu (Receipts).\n\n**`FILE_DRIVER=s3-presigned` (khuyến nghị production):** (1) `POST /files/upload` body JSON `fileName` + `fileSize` → nhận `uploadSignedUrl` và `file.id`. (2) `PUT` nguyên URL `uploadSignedUrl` với **đúng file** có kích thước **trùng** `fileSize` (presigned ký theo Content-Length). Đặt biến `fileUploadSize` = số byte thật (vd. `wc -c ảnh.jpg`). Chỉ hỗ trợ đuôi jpg/jpeg/png/gif.\n\n**`FILE_DRIVER=local` hoặc `s3`:** dùng request multipart **POST /files/upload (multipart)** bên dưới.",
+      "description": "Upload JWT: **driverAccessToken** khi gắn ảnh phiếu (Receipts).\n\n**`FILE_DRIVER=s3-presigned`:** (1) `POST /files/upload` JSON `fileName` + `fileSize` → `uploadSignedUrl` + `file.id`. `fileSize` dùng để kiểm tra giới hạn trên API (≤ maxFileSize). (2) `PUT` body binary lên `uploadSignedUrl` (không Bearer). Chỉ đuôi jpg/jpeg/png/gif.\n\n**`FILE_DRIVER=local` hoặc `s3`:** **POST /files/upload (multipart)** bên dưới.",
       "item": [
         {
           "name": "POST /files/upload (presigned – bước 1 JSON)",
@@ -1753,7 +1753,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["files", "upload"]
             },
-            "description": "Chỉ khi backend `FILE_DRIVER=s3-presigned`. Response: `{ file: { id, path }, uploadSignedUrl }`. Tiếp theo chạy **PUT presigned URL** cùng file có đúng `fileUploadSize` byte."
+            "description": "Chỉ khi backend `FILE_DRIVER=s3-presigned`. Response: `{ file: { id, path }, uploadSignedUrl }`. `fileUploadSize` = byte (≤ maxFileSize); nên khớp `File.size` ở client. Sau đó **PUT presigned URL** với binary."
           },
           "response": []
         },
@@ -1769,7 +1769,7 @@
               }
             },
             "url": "{{uploadSignedUrl}}",
-            "description": "Không gửi Bearer. URL đầy đủ từ biến `uploadSignedUrl` (sau bước 1). Chọn **cùng file** và đảm bảo kích thước = `fileUploadSize`. Thành công thường trả HTTP 200."
+            "description": "Không gửi Bearer. URL đầy đủ từ `uploadSignedUrl`. Body = file binary. Thành công thường HTTP 200."
           },
           "response": []
         },

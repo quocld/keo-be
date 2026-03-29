@@ -74,12 +74,13 @@ export class FilesS3PresignedService {
       .pop()
       ?.toLowerCase()}`;
 
+    // Do not set ContentLength on the signed command: it becomes part of
+    // X-Amz-SignedHeaders and the client must match it exactly or S3 returns 403.
     const command = new PutObjectCommand({
       Bucket: this.configService.getOrThrow('file.awsDefaultS3Bucket', {
         infer: true,
       }),
       Key: key,
-      ContentLength: file.fileSize,
     });
     const signedUrl = await getSignedUrl(this.s3, command, { expiresIn: 3600 });
     const data = await this.fileRepository.create({
