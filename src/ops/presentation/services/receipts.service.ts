@@ -107,6 +107,8 @@ export class ReceiptsService {
 
     const data = await qb.getMany();
 
+    await Promise.all(data.map((r) => this.hydrateReceiptImageUrls(r)));
+
     return infinityPagination(data, { page, limit });
   }
 
@@ -140,6 +142,7 @@ export class ReceiptsService {
     }
 
     if (this.opsAuthorizationService.isAdmin(actor)) {
+      await this.hydrateReceiptImageUrls(receipt);
       return receipt;
     }
 
@@ -147,6 +150,7 @@ export class ReceiptsService {
       if (Number(receipt.driver.id) !== Number(actor.id)) {
         throw new NotFoundException({ error: 'receiptNotFound' });
       }
+      await this.hydrateReceiptImageUrls(receipt);
       return receipt;
     }
 
@@ -162,7 +166,21 @@ export class ReceiptsService {
       throw e;
     }
 
+    await this.hydrateReceiptImageUrls(receipt);
     return receipt;
+  }
+
+  private async hydrateReceiptImageUrls(receipt: ReceiptEntity): Promise<void> {
+    if (!receipt.images?.length) {
+      return;
+    }
+    await Promise.all(
+      receipt.images.map(async (img) => {
+        img.imageUrl = await this.filesService.resolveReceiptImageUrlForView(
+          img.imageUrl,
+        );
+      }),
+    );
   }
 
   async submit(actor: JwtPayloadType, dto: SubmitReceiptDto) {
@@ -203,9 +221,7 @@ export class ReceiptsService {
       .map((id) => byId.get(id))
       .filter((f): f is FileType => f != null);
 
-    const resolvedFromFiles = await Promise.all(
-      orderedFiles.map((f) => this.filesService.resolvePublicUrl(f.path)),
-    );
+    const resolvedFromFiles = orderedFiles.map((f) => f.path);
 
     const imageUrlsFromClient = (dto.imageUrls ?? []).filter((u) => u?.trim());
     if (dto.receiptImageUrl?.trim()) {
@@ -271,42 +287,47 @@ export class ReceiptsService {
       );
     }
 
-    return this.receiptsRepository.manager.transaction(async (em) => {
-      const receiptRepo = em.getRepository(ReceiptEntity);
-      const imageRepo = em.getRepository(ReceiptImageEntity);
+    const submitted = await this.receiptsRepository.manager.transaction(
+      async (em) => {
+        const receiptRepo = em.getRepository(ReceiptEntity);
+        const imageRepo = em.getRepository(ReceiptImageEntity);
 
-      const receipt = receiptRepo.create({
-        trip: tripIdToUse ? ({ id: tripIdToUse } as any) : null,
-        driver: { id: driverUserIdForReceipt } as any,
-        harvestArea: { id: dto.harvestAreaId } as any,
-        weighingStation: weighingStationIdToUse
-          ? ({ id: weighingStationIdToUse } as any)
-          : null,
-        weight: dto.weight.toString(),
-        amount: dto.amount.toString(),
-        receiptDate: new Date(dto.receiptDate),
-        billCode: dto.billCode ?? null,
-        notes: dto.notes ?? null,
-        status: ReceiptStatusEnum.pending,
-        submittedAt: new Date(),
-      });
+        const receipt = receiptRepo.create({
+          trip: tripIdToUse ? ({ id: tripIdToUse } as any) : null,
+          driver: { id: driverUserIdForReceipt } as any,
+          harvestArea: { id: dto.harvestAreaId } as any,
+          weighingStation: weighingStationIdToUse
+            ? ({ id: weighingStationIdToUse } as any)
+            : null,
+          weight: dto.weight.toString(),
+          amount: dto.amount.toString(),
+          receiptDate: new Date(dto.receiptDate),
+          billCode: dto.billCode ?? null,
+          notes: dto.notes ?? null,
+          status: ReceiptStatusEnum.pending,
+          submittedAt: new Date(),
+        });
 
-      const saved = await receiptRepo.save(receipt);
+        const saved = await receiptRepo.save(receipt);
 
-      const imageEntities = allImageUrls.map((url, index) =>
-        imageRepo.create({
-          receipt: saved,
-          imageUrl: url,
-          isPrimary: index === 0,
-        }),
-      );
-      await imageRepo.save(imageEntities);
+        const imageEntities = allImageUrls.map((url, index) =>
+          imageRepo.create({
+            receipt: saved,
+            imageUrl: url,
+            isPrimary: index === 0,
+          }),
+        );
+        await imageRepo.save(imageEntities);
 
-      return receiptRepo.findOneOrFail({
-        where: { id: saved.id },
-        relations: ['images'],
-      });
-    });
+        return receiptRepo.findOneOrFail({
+          where: { id: saved.id },
+          relations: ['images'],
+        });
+      },
+    );
+
+    await this.hydrateReceiptImageUrls(submitted);
+    return submitted;
   }
 
   async approve(
@@ -343,31 +364,114 @@ export class ReceiptsService {
       receipt.harvestArea.id,
     );
 
-    return this.receiptsRepository.manager.transaction(async (em) => {
-      const receiptRepo = em.getRepository(ReceiptEntity);
-      const financeRepo = em.getRepository(FinanceRecordEntity);
+    const approved = await this.receiptsRepository.manager.transaction(
+      async (em) => {
+        const receiptRepo = em.getRepository(ReceiptEntity);
+        const financeRepo = em.getRepository(FinanceRecordEntity);
 
-      const row = await receiptRepo.findOne({
-        where: { id: receiptId },
-        relations: [
-          'weighingStation',
-          'trip',
-          'trip.weighingStation',
-          'financeRecord',
-        ],
-      });
-
-      if (!row || row.status !== ReceiptStatusEnum.pending) {
-        throw new UnprocessableEntityException({
-          error: 'receiptMustBePending',
+        const row = await receiptRepo.findOne({
+          where: { id: receiptId },
+          relations: [
+            'weighingStation',
+            'trip',
+            'trip.weighingStation',
+            'financeRecord',
+          ],
         });
-      }
 
-      const existingFinance = await financeRepo.findOne({
-        where: { receipt: { id: receiptId } },
-      });
+        if (!row || row.status !== ReceiptStatusEnum.pending) {
+          throw new UnprocessableEntityException({
+            error: 'receiptMustBePending',
+          });
+        }
 
-      if (existingFinance) {
+        const existingFinance = await financeRepo.findOne({
+          where: { receipt: { id: receiptId } },
+        });
+
+        if (existingFinance) {
+          return receiptRepo.findOneOrFail({
+            where: { id: receiptId },
+            relations: [
+              'images',
+              'financeRecord',
+              'weighingStation',
+              'harvestArea',
+            ],
+          });
+        }
+
+        let resolvedStation: WeighingStationEntity | null =
+          row.weighingStation ?? null;
+
+        if (!resolvedStation && row.trip?.weighingStation) {
+          resolvedStation = row.trip.weighingStation;
+        }
+
+        if (!resolvedStation && dto.weighingStationId) {
+          resolvedStation = await this.weighingStationsRepository.findOne({
+            where: { id: dto.weighingStationId },
+          });
+          if (!resolvedStation) {
+            throw new UnprocessableEntityException({
+              error: 'weighingStationNotFound',
+            });
+          }
+        }
+
+        if (!resolvedStation) {
+          throw new UnprocessableEntityException({
+            error: 'weighingStationRequiredForApproval',
+          });
+        }
+
+        if (resolvedStation.status !== 'active') {
+          throw new UnprocessableEntityException({
+            error: 'weighingStationInactive',
+          });
+        }
+
+        if (!row.weighingStation) {
+          row.weighingStation = resolvedStation;
+        }
+
+        const revenue = revenueFromWeightAndUnitPrice(
+          row.weight,
+          resolvedStation.unitPrice,
+        );
+
+        row.status = ReceiptStatusEnum.approved;
+        row.approvedBy = { id: actor.id } as any;
+        row.approvedAt = new Date();
+        row.rejectedReason = null;
+
+        await receiptRepo.save(row);
+
+        await financeRepo.save(
+          financeRepo.create({
+            receipt: row,
+            revenue,
+            costDriver: '0',
+            costHarvest: '0',
+            otherCost: '0',
+          }),
+        );
+
+        if (row.trip?.id) {
+          const tripRepo = em.getRepository(TripEntity);
+          const tripEntity = await tripRepo.findOne({
+            where: { id: row.trip.id },
+          });
+          if (tripEntity) {
+            const nextTons = Number(tripEntity.totalTons) + Number(row.weight);
+            tripEntity.totalTons = (Math.round(nextTons * 100) / 100).toFixed(
+              2,
+            );
+            tripEntity.totalReceipts += 1;
+            await tripRepo.save(tripEntity);
+          }
+        }
+
         return receiptRepo.findOneOrFail({
           where: { id: receiptId },
           relations: [
@@ -377,87 +481,11 @@ export class ReceiptsService {
             'harvestArea',
           ],
         });
-      }
+      },
+    );
 
-      let resolvedStation: WeighingStationEntity | null =
-        row.weighingStation ?? null;
-
-      if (!resolvedStation && row.trip?.weighingStation) {
-        resolvedStation = row.trip.weighingStation;
-      }
-
-      if (!resolvedStation && dto.weighingStationId) {
-        resolvedStation = await this.weighingStationsRepository.findOne({
-          where: { id: dto.weighingStationId },
-        });
-        if (!resolvedStation) {
-          throw new UnprocessableEntityException({
-            error: 'weighingStationNotFound',
-          });
-        }
-      }
-
-      if (!resolvedStation) {
-        throw new UnprocessableEntityException({
-          error: 'weighingStationRequiredForApproval',
-        });
-      }
-
-      if (resolvedStation.status !== 'active') {
-        throw new UnprocessableEntityException({
-          error: 'weighingStationInactive',
-        });
-      }
-
-      if (!row.weighingStation) {
-        row.weighingStation = resolvedStation;
-      }
-
-      const revenue = revenueFromWeightAndUnitPrice(
-        row.weight,
-        resolvedStation.unitPrice,
-      );
-
-      row.status = ReceiptStatusEnum.approved;
-      row.approvedBy = { id: actor.id } as any;
-      row.approvedAt = new Date();
-      row.rejectedReason = null;
-
-      await receiptRepo.save(row);
-
-      await financeRepo.save(
-        financeRepo.create({
-          receipt: row,
-          revenue,
-          costDriver: '0',
-          costHarvest: '0',
-          otherCost: '0',
-        }),
-      );
-
-      if (row.trip?.id) {
-        const tripRepo = em.getRepository(TripEntity);
-        const tripEntity = await tripRepo.findOne({
-          where: { id: row.trip.id },
-        });
-        if (tripEntity) {
-          const nextTons = Number(tripEntity.totalTons) + Number(row.weight);
-          tripEntity.totalTons = (Math.round(nextTons * 100) / 100).toFixed(2);
-          tripEntity.totalReceipts += 1;
-          await tripRepo.save(tripEntity);
-        }
-      }
-
-      return receiptRepo.findOneOrFail({
-        where: { id: receiptId },
-        relations: [
-          'images',
-          'financeRecord',
-          'weighingStation',
-          'harvestArea',
-        ],
-      });
-    });
+    await this.hydrateReceiptImageUrls(approved);
+    return approved;
   }
 
   async reject(
