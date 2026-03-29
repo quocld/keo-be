@@ -1524,7 +1524,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["receipts"]
             },
-            "description": "Chạy **POST /files/upload** (driver) trước; biến `uploadedFileId` lưu `file.id` từ response."
+            "description": "Với **s3-presigned**: Files → POST JSON bước 1 → PUT S3 bước 2. Với local/s3: POST multipart. Biến `uploadedFileId` = `file.id` sau upload xong."
           },
           "response": []
         },
@@ -1720,10 +1720,61 @@
     },
     {
       "name": "Files",
-      "description": "Upload JWT: dùng **driverAccessToken** khi gắn ảnh vào phiếu (Receipts).",
+      "description": "Upload JWT: **driverAccessToken** khi gắn ảnh phiếu (Receipts).\n\n**`FILE_DRIVER=s3-presigned` (khuyến nghị production):** (1) `POST /files/upload` body JSON `fileName` + `fileSize` → nhận `uploadSignedUrl` và `file.id`. (2) `PUT` nguyên URL `uploadSignedUrl` với **đúng file** có kích thước **trùng** `fileSize` (presigned ký theo Content-Length). Đặt biến `fileUploadSize` = số byte thật (vd. `wc -c ảnh.jpg`). Chỉ hỗ trợ đuôi jpg/jpeg/png/gif.\n\n**`FILE_DRIVER=local` hoặc `s3`:** dùng request multipart **POST /files/upload (multipart)** bên dưới.",
       "item": [
         {
-          "name": "POST /files/upload (driver – cho receipt imageFileIds)",
+          "name": "POST /files/upload (presigned – bước 1 JSON)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "const id = res.file && res.file.id;",
+                  "if (id) pm.collectionVariables.set('uploadedFileId', id);",
+                  "if (res.uploadSignedUrl) pm.collectionVariables.set('uploadSignedUrl', res.uploadSignedUrl);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{driverAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileName\": \"{{fileUploadName}}\",\n  \"fileSize\": {{fileUploadSize}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/files/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["files", "upload"]
+            },
+            "description": "Chỉ khi backend `FILE_DRIVER=s3-presigned`. Response: `{ file: { id, path }, uploadSignedUrl }`. Tiếp theo chạy **PUT presigned URL** cùng file có đúng `fileUploadSize` byte."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT presigned URL (bước 2 – binary lên S3)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "file",
+              "file": {
+                "src": ""
+              }
+            },
+            "url": "{{uploadSignedUrl}}",
+            "description": "Không gửi Bearer. URL đầy đủ từ biến `uploadSignedUrl` (sau bước 1). Chọn **cùng file** và đảm bảo kích thước = `fileUploadSize`. Thành công thường trả HTTP 200."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /files/upload (multipart – local hoặc s3)",
           "event": [
             {
               "listen": "test",
@@ -1755,7 +1806,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["files", "upload"]
             },
-            "description": "Response dạng `{ file: { id, path } }`. Test script ghi `uploadedFileId` để dùng trong POST /receipts (imageFileIds)."
+            "description": "Khi `FILE_DRIVER=local` hoặc `s3`. Response `{ file: { id, path } }`."
           },
           "response": []
         },
@@ -1798,6 +1849,9 @@
     { "key": "ownerWeighingStationId", "value": "" },
     { "key": "receiptId", "value": "" },
     { "key": "tripId", "value": "" },
+    { "key": "uploadSignedUrl", "value": "" },
+    { "key": "fileUploadName", "value": "receipt.jpg" },
+    { "key": "fileUploadSize", "value": "1024" },
     { "key": "uploadedFileId", "value": "" },
     { "key": "vehicleId", "value": "" },
     { "key": "vehicleExpenseId", "value": "" }
