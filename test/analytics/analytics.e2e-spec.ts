@@ -269,6 +269,27 @@ describe('Analytics Scope & Metrics (no realtime)', () => {
     expect(dash.body.profit).toBe(2000);
     expect(dash.body.revenue).toBe(2000);
     expect(dash.body.pendingReceiptsCount).toBe(1);
+
+    // Extended dashboard KPI (owner-scoped)
+    expect(dash.body.totalWeight).toBe(2); // approved weight only
+    expect(dash.body.dailyAvgWeight).toBeCloseTo(2, 6);
+    expect(dash.body.marginPercent).toBe(100);
+    expect(dash.body.revenueTrendPercent).toBe(0);
+    expect(dash.body.profitTrendPercent).toBe(0);
+    expect(dash.body.transportGrowthPercent30d).toBe(100);
+
+    expect(dash.body.fleetStatus).toBeDefined();
+    expect(dash.body.fleetStatus.vehiclesActiveCount).toBe(0);
+    expect(dash.body.fleetStatus.onRoadCount).toBe(0);
+    expect(dash.body.fleetStatus.maintenanceCount).toBe(0);
+    expect(dash.body.fleetStatus.idleCount).toBe(0);
+    expect(dash.body.fleetStatus.vehiclesTotalCount).toBe(0);
+
+    expect(Array.isArray(dash.body.topDrivers)).toBe(true);
+    expect(dash.body.topDrivers.length).toBeGreaterThan(0);
+    expect(dash.body.topDrivers[0].profit).toBe(2000);
+    expect(dash.body.topDrivers[0].revenue).toBe(2000);
+    expect(dash.body.topDrivers[0].deliveries).toBe(1);
   });
 
   it('should let owner2 dashboard include only owner2 data', async () => {
@@ -280,6 +301,27 @@ describe('Analytics Scope & Metrics (no realtime)', () => {
     expect(dash.body.profit).toBe(4000);
     expect(dash.body.revenue).toBe(4000);
     expect(dash.body.pendingReceiptsCount).toBe(1);
+
+    // Extended dashboard KPI (owner-scoped)
+    expect(dash.body.totalWeight).toBe(2); // approved weight only
+    expect(dash.body.dailyAvgWeight).toBeCloseTo(2, 6);
+    expect(dash.body.marginPercent).toBe(100);
+    expect(dash.body.revenueTrendPercent).toBe(0);
+    expect(dash.body.profitTrendPercent).toBe(0);
+    expect(dash.body.transportGrowthPercent30d).toBe(100);
+
+    expect(dash.body.fleetStatus).toBeDefined();
+    expect(dash.body.fleetStatus.vehiclesActiveCount).toBe(0);
+    expect(dash.body.fleetStatus.onRoadCount).toBe(0);
+    expect(dash.body.fleetStatus.maintenanceCount).toBe(0);
+    expect(dash.body.fleetStatus.idleCount).toBe(0);
+    expect(dash.body.fleetStatus.vehiclesTotalCount).toBe(0);
+
+    expect(Array.isArray(dash.body.topDrivers)).toBe(true);
+    expect(dash.body.topDrivers.length).toBeGreaterThan(0);
+    expect(dash.body.topDrivers[0].profit).toBe(4000);
+    expect(dash.body.topDrivers[0].revenue).toBe(4000);
+    expect(dash.body.topDrivers[0].deliveries).toBe(1);
   });
 
   it('should scope driver1 receipts/finance reports to driver1 only', async () => {

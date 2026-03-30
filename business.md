@@ -254,7 +254,7 @@ Không có OCR ở MVP (sẽ làm sau). Hiện tại dùng manual entry + chụp
 | Receipt gắn Trip                           | **Có** `tripId` khi submit: khớp driver + khu + trip `in_progress`; trạm cân **auto** theo trip; backend kiểm tra lại phạm vi bãi/trạm/owner |
 | Trip `total_tons` / `total_receipts`       | **Có** cộng khi **approve** phiếu có `trip_id` |
 | Live tracking / map                        | Bảng `vehicle_locations` có trong DB; **chưa** có API ghi/đọc vị trí theo BRD |
-| Dashboard, báo cáo, alert                  | Dashboard summary & reports (HTTP polling): **Có** `/analytics/dashboard/summary` + `/analytics/reports/*` + detail driver/trạm/khu; map realtime và alert đầy đủ: **chưa** |
+| Dashboard, báo cáo, alert                  | Dashboard summary & reports (HTTP polling): **Có** `/analytics/dashboard/summary` + `/analytics/reports/*` + detail driver/trạm/khu (đã có thêm KPI như `totalWeight/margin/trend/fleetStatus` cho Owner); map realtime và alert đầy đủ: **chưa** |
 | Audit log, notifications                   | Bảng có trong DB; **chưa** có service/API đầy đủ theo BRD |
 | Duplicate `bill_code`, anti-fraud nâng cao | **Chưa** rule kiểm tra trùng |
 | Admin user CRUD                            | **Có** (module Users, role admin) — một phần mục 8 |

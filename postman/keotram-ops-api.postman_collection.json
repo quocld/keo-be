@@ -1769,7 +1769,7 @@
     },
     {
       "name": "Analytics",
-      "description": "Analytics MVP (HTTP polling): dashboard summary + reports (receipts/finance/trips) + detail driver/trạm-khu-khai-thác. Lưu ý: để có `profit/revenue` cần ít nhất 1 receipt đã `approve` (tạo `finance_records`).",
+      "description": "Analytics MVP (HTTP polling): dashboard summary + reports (receipts/finance/trips) + detail driver/trạm-khu-khai-thác. Lưu ý: để có `profit/revenue` cần ít nhất 1 receipt đã `approve` (tạo `finance_records`). `GET /analytics/dashboard/summary` (owner) có thêm KPI/breakdown như `totalWeight`, `dailyAvgWeight`, `marginPercent`, trend (`revenueTrendPercent`/`profitTrendPercent`/`transportGrowthPercent30d`), `fleetStatus`, và `topDrivers[].revenue`/`topDrivers[].deliveries`.",
       "item": [
         {
           "name": "GET /analytics/dashboard/summary (driver)",

@@ -241,6 +241,54 @@ export class AnalyticsService {
       .addSelect('COALESCE(SUM(fr.profit), 0)', 'profit')
       .getRawOne<{ revenue: string; profit: string }>();
 
+    const currentRevenue = totalsRaw?.revenue ? Number(totalsRaw.revenue) : 0;
+    const currentProfit = totalsRaw?.profit ? Number(totalsRaw.profit) : 0;
+
+    // Total Weight (sum approved receipt weight) over the same finance scope/time range.
+    const totalWeightRaw = this.financeRecordsRepository
+      .createQueryBuilder('fr')
+      .leftJoin('fr.receipt', 'r')
+      .leftJoin('r.harvestArea', 'ha')
+      .leftJoin('r.driver', 'd')
+      .where('fr.calculated_at >= :from AND fr.calculated_at <= :to', {
+        from,
+        to,
+      });
+
+    this.applyFinanceScope(totalWeightRaw, actor, {
+      financeAlias: 'fr',
+      receiptAlias: 'r',
+      harvestAreaAlias: 'ha',
+    });
+
+    const totalWeightResult = await totalWeightRaw
+      .select('COALESCE(SUM(r.weight), 0)', 'totalWeight')
+      .getRawOne<{ totalWeight: string }>();
+
+    const totalWeight = Number(totalWeightResult?.totalWeight ?? 0);
+
+    const getInclusiveDays = (fromDate: Date, toDate: Date): number => {
+      const ms = toDate.getTime() - fromDate.getTime();
+      // Inclusive day count for human-friendly averages.
+      return Math.max(1, Math.ceil(ms / 86400000) + 1);
+    };
+
+    const daysInRange =
+      range === 'today'
+        ? 1
+        : range === 'month'
+          ? (() => {
+              const d = new Date(from);
+              const year = d.getFullYear();
+              const month = d.getMonth();
+              // Day 0 of next month = last day of current month.
+              return new Date(year, month + 1, 0).getDate();
+            })()
+          : getInclusiveDays(from, to);
+
+    const marginPercent =
+      currentRevenue > 0 ? (currentProfit / currentRevenue) * 100 : 0;
+
     // Pending receipts count (from receipts)
     const pendingQb = this.receiptsRepository
       .createQueryBuilder('r')
@@ -259,6 +307,104 @@ export class AnalyticsService {
     const pendingRaw = await pendingQb
       .select('COUNT(DISTINCT r.id)', 'count')
       .getRawOne<{ count: string }>();
+
+    // Revenue/Profit trend vs previous period with the same duration.
+    const durationMs = to.getTime() - from.getTime();
+    const prevTo = new Date(from.getTime() - 1);
+    const prevFrom = new Date(from.getTime() - durationMs - 1);
+
+    const prevFinanceTotals = await this.financeRecordsRepository
+      .createQueryBuilder('fr')
+      .leftJoin('fr.receipt', 'r')
+      .leftJoin('r.harvestArea', 'ha')
+      .leftJoin('r.driver', 'd')
+      .where('fr.calculated_at >= :from AND fr.calculated_at <= :to', {
+        from: prevFrom,
+        to: prevTo,
+      });
+
+    this.applyFinanceScope(prevFinanceTotals, actor, {
+      financeAlias: 'fr',
+      receiptAlias: 'r',
+      harvestAreaAlias: 'ha',
+    });
+
+    const prevTotalsRaw = await prevFinanceTotals
+      .select('COALESCE(SUM(fr.revenue), 0)', 'revenue')
+      .addSelect('COALESCE(SUM(fr.profit), 0)', 'profit')
+      .getRawOne<{ revenue: string; profit: string }>();
+
+    const prevRevenue = prevTotalsRaw?.revenue
+      ? Number(prevTotalsRaw.revenue)
+      : 0;
+    const prevProfit = prevTotalsRaw?.profit ? Number(prevTotalsRaw.profit) : 0;
+
+    const revenueTrendPercent =
+      prevRevenue > 0
+        ? ((currentRevenue - prevRevenue) / prevRevenue) * 100
+        : 0;
+    const profitTrendPercent =
+      prevProfit > 0 ? ((currentProfit - prevProfit) / prevProfit) * 100 : 0;
+
+    // Transport growth: compare approved receipt weight in last 30 days vs previous 30 days.
+    const now = new Date();
+    const current30From = new Date(now);
+    current30From.setDate(now.getDate() - 30);
+    const current30To = now;
+
+    const previous30From = new Date(current30From);
+    previous30From.setDate(current30From.getDate() - 30);
+    const previous30To = new Date(current30From.getTime() - 1);
+
+    const current30WeightQb = this.financeRecordsRepository
+      .createQueryBuilder('fr')
+      .leftJoin('fr.receipt', 'r')
+      .leftJoin('r.harvestArea', 'ha')
+      .leftJoin('r.driver', 'd')
+      .where('fr.calculated_at >= :from AND fr.calculated_at <= :to', {
+        from: current30From,
+        to: current30To,
+      });
+
+    this.applyFinanceScope(current30WeightQb, actor, {
+      financeAlias: 'fr',
+      receiptAlias: 'r',
+      harvestAreaAlias: 'ha',
+    });
+
+    const current30WeightRaw = await current30WeightQb
+      .select('COALESCE(SUM(r.weight), 0)', 'totalWeight')
+      .getRawOne<{ totalWeight: string }>();
+
+    const previous30WeightQb = this.financeRecordsRepository
+      .createQueryBuilder('fr')
+      .leftJoin('fr.receipt', 'r')
+      .leftJoin('r.harvestArea', 'ha')
+      .leftJoin('r.driver', 'd')
+      .where('fr.calculated_at >= :from AND fr.calculated_at <= :to', {
+        from: previous30From,
+        to: previous30To,
+      });
+
+    this.applyFinanceScope(previous30WeightQb, actor, {
+      financeAlias: 'fr',
+      receiptAlias: 'r',
+      harvestAreaAlias: 'ha',
+    });
+
+    const previous30WeightRaw = await previous30WeightQb
+      .select('COALESCE(SUM(r.weight), 0)', 'totalWeight')
+      .getRawOne<{ totalWeight: string }>();
+
+    const current30Weight = Number(current30WeightRaw?.totalWeight ?? 0);
+    const previous30Weight = Number(previous30WeightRaw?.totalWeight ?? 0);
+
+    const transportGrowthPercent30d =
+      previous30Weight > 0
+        ? ((current30Weight - previous30Weight) / previous30Weight) * 100
+        : current30Weight > 0
+          ? 100
+          : 0;
 
     // Busy/Free vehicles: derived from current in_progress trips.
     const inProgressDrivers = await this.tripsRepository
@@ -318,6 +464,68 @@ export class AnalyticsService {
 
     const freeVehiclesCount = assignedVehiclesCount - busyVehiclesCount;
 
+    // Fleet status counts (active/onRoad/maintenance/idle) for owner dashboards.
+    const vehiclesStatusQb = this.vehiclesRepository
+      .createQueryBuilder('v')
+      .leftJoin('v.owner', 'o')
+      .leftJoin('v.assignedDriver', 'd');
+
+    if (roleScope === 'owner') {
+      vehiclesStatusQb.andWhere('o.id = :ownerId', {
+        ownerId: Number(actor.id),
+      });
+    } else if (roleScope === 'driver') {
+      vehiclesStatusQb.andWhere('d.id = :driverId', {
+        driverId: Number(actor.id),
+      });
+    }
+
+    const vehicleStatusRows = await vehiclesStatusQb
+      .select('v.status', 'status')
+      .addSelect('COUNT(DISTINCT v.id)', 'count')
+      .groupBy('v.status')
+      .getRawMany<{ status: string; count: string }>();
+
+    const vehicleStatusCounts = vehicleStatusRows.reduce(
+      (acc, row) => {
+        acc[row.status] = Number(row.count ?? 0);
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+    const vehiclesActiveCount = vehicleStatusCounts['active'] ?? 0;
+    const maintenanceCount = vehicleStatusCounts['maintenance'] ?? 0;
+    const idleCount = vehicleStatusCounts['idle'] ?? 0;
+    const vehiclesTotalCount = vehicleStatusRows.reduce(
+      (sum, row) => sum + Number(row.count ?? 0),
+      0,
+    );
+
+    let onRoadCount = 0;
+    if (inProgressDriverIds.length > 0) {
+      const onRoadQb = this.vehiclesRepository
+        .createQueryBuilder('v')
+        .leftJoin('v.owner', 'o')
+        .leftJoin('v.assignedDriver', 'd')
+        .where('v.status = :activeStatus', { activeStatus: 'active' })
+        .andWhere('d.id IN (:...driverIds)', { driverIds: inProgressDriverIds })
+        .select('COUNT(DISTINCT v.id)', 'count');
+
+      if (roleScope === 'owner') {
+        onRoadQb.andWhere('o.id = :ownerId', {
+          ownerId: Number(actor.id),
+        });
+      } else if (roleScope === 'driver') {
+        onRoadQb.andWhere('d.id = :driverId', {
+          driverId: Number(actor.id),
+        });
+      }
+
+      const onRoadRaw = await onRoadQb.getRawOne<{ count: string }>();
+      onRoadCount = Number(onRoadRaw?.count ?? 0);
+    }
+
     // Top drivers by profit (finance_records.profit)
     const topDriversRaw = await this.financeRecordsRepository
       .createQueryBuilder('fr')
@@ -341,6 +549,8 @@ export class AnalyticsService {
       .addSelect('MAX(d.firstName)', 'firstName')
       .addSelect('MAX(d.lastName)', 'lastName')
       .addSelect('SUM(fr.profit)', 'profit')
+      .addSelect('SUM(fr.revenue)', 'revenue')
+      .addSelect('COUNT(fr.id)', 'deliveries')
       .groupBy('d.id')
       .orderBy('profit', 'DESC')
       .limit(5)
@@ -350,17 +560,40 @@ export class AnalyticsService {
         firstName: string | null;
         lastName: string | null;
         profit: string;
+        revenue: string;
+        deliveries: string;
       }>();
 
     return {
-      revenue: totalsRaw?.revenue ? Number(totalsRaw.revenue) : 0,
-      profit: totalsRaw?.profit ? Number(totalsRaw.profit) : 0,
+      revenue: currentRevenue,
+      profit: currentProfit,
+      totalWeight,
+      dailyAvgWeight: totalWeight / daysInRange,
+      marginPercent,
+      revenueTrendPercent,
+      profitTrendPercent,
+      transportGrowthPercent30d,
       pendingReceiptsCount: Number(pendingRaw?.count ?? 0),
       vehicles: {
         busyCount: busyVehiclesCount,
         freeCount: freeVehiclesCount,
       },
-      topDrivers,
+      fleetStatus: {
+        vehiclesActiveCount,
+        onRoadCount,
+        maintenanceCount,
+        idleCount,
+        vehiclesTotalCount,
+      },
+      topDrivers: topDrivers.map((d) => ({
+        driverId: d.driverId,
+        email: d.email,
+        firstName: d.firstName,
+        lastName: d.lastName,
+        profit: Number(d.profit ?? 0),
+        revenue: Number(d.revenue ?? 0),
+        deliveries: Number(d.deliveries ?? 0),
+      })),
     };
   }
 
