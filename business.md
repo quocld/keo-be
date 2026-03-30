@@ -136,7 +136,7 @@ Không có OCR ở MVP (sẽ làm sau). Hiện tại dùng manual entry + chụp
 
 ## 7. Feature list – Owner App
 
-### 7.1 Dashboard realtime (core)
+### 7.1 Dashboard analytics (HTTP polling) (core)
 
 - Doanh thu / chi phí / lợi nhuận hôm nay & tháng
 - Tổng tấn vận chuyển
@@ -182,9 +182,8 @@ Không có OCR ở MVP (sẽ làm sau). Hiện tại dùng manual entry + chụp
 - Xem xe đang bận/rảnh
 
 ### 7.7 Report & alert
-
-- Báo cáo theo ngày/tuần/tháng/khu/trạm/driver
-- Alert: receipt pending quá lâu, xe dừng bất thường, xe đi sai hướng, driver có nhiều reject
+- Báo cáo theo ngày/tháng/khu/trạm/driver (MVP: API analytics HTTP polling)
+- Alert: receipt pending quá lâu, xe dừng bất thường, xe đi sai hướng, driver có nhiều reject *(MVP: chưa có endpoint Alert đầy đủ)*
 
 ---
 
@@ -255,7 +254,7 @@ Không có OCR ở MVP (sẽ làm sau). Hiện tại dùng manual entry + chụp
 | Receipt gắn Trip                           | **Có** `tripId` khi submit: khớp driver + khu + trip `in_progress`; trạm cân **auto** theo trip; backend kiểm tra lại phạm vi bãi/trạm/owner |
 | Trip `total_tons` / `total_receipts`       | **Có** cộng khi **approve** phiếu có `trip_id` |
 | Live tracking / map                        | Bảng `vehicle_locations` có trong DB; **chưa** có API ghi/đọc vị trí theo BRD |
-| Dashboard, báo cáo, alert                  | **Chưa** có API như mục 7.1, 7.7 |
+| Dashboard, báo cáo, alert                  | Dashboard summary & reports (HTTP polling): **Có** `/analytics/dashboard/summary` + `/analytics/reports/*` + detail driver/trạm/khu; map realtime và alert đầy đủ: **chưa** |
 | Audit log, notifications                   | Bảng có trong DB; **chưa** có service/API đầy đủ theo BRD |
 | Duplicate `bill_code`, anti-fraud nâng cao | **Chưa** rule kiểm tra trùng |
 | Admin user CRUD                            | **Có** (module Users, role admin) — một phần mục 8 |

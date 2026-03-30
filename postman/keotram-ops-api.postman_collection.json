@@ -1768,6 +1768,196 @@
       ]
     },
     {
+      "name": "Analytics",
+      "description": "Analytics MVP (HTTP polling): dashboard summary + reports (receipts/finance/trips) + detail driver/trạm-khu-khai-thác. Lưu ý: để có `profit/revenue` cần ít nhất 1 receipt đã `approve` (tạo `finance_records`).",
+      "item": [
+        {
+          "name": "GET /analytics/dashboard/summary (driver)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{driverAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/analytics/dashboard/summary?range=today",
+              "host": ["{{baseUrl}}"],
+              "path": ["analytics", "dashboard", "summary"],
+              "query": [
+                { "key": "range", "value": "today" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /analytics/dashboard/summary (owner)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/analytics/dashboard/summary?range=today",
+              "host": ["{{baseUrl}}"],
+              "path": ["analytics", "dashboard", "summary"],
+              "query": [
+                { "key": "range", "value": "today" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /analytics/dashboard/summary (admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/analytics/dashboard/summary?range=today",
+              "host": ["{{baseUrl}}"],
+              "path": ["analytics", "dashboard", "summary"],
+              "query": [
+                { "key": "range", "value": "today" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /analytics/reports/receipts (driver)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{driverAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/analytics/reports/receipts?range=today&groupBy=day&status=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["analytics", "reports", "receipts"],
+              "query": [
+                { "key": "range", "value": "today" },
+                { "key": "groupBy", "value": "day" },
+                { "key": "status", "value": "all" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /analytics/reports/finance (owner)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/analytics/reports/finance?range=today&groupBy=day",
+              "host": ["{{baseUrl}}"],
+              "path": ["analytics", "reports", "finance"],
+              "query": [
+                { "key": "range", "value": "today" },
+                { "key": "groupBy", "value": "day" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /analytics/reports/trips (admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/analytics/reports/trips?range=today&groupBy=status",
+              "host": ["{{baseUrl}}"],
+              "path": ["analytics", "reports", "trips"],
+              "query": [
+                { "key": "range", "value": "today" },
+                { "key": "groupBy", "value": "status" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /analytics/drivers/me/detail (driver)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{driverAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/analytics/drivers/me/detail?range=today",
+              "host": ["{{baseUrl}}"],
+              "path": ["analytics", "drivers", "me", "detail"],
+              "query": [
+                { "key": "range", "value": "today" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /analytics/drivers/:driverId/detail (owner)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/analytics/drivers/{{managedDriverUserId}}/detail?range=today",
+              "host": ["{{baseUrl}}"],
+              "path": ["analytics", "drivers", "{{managedDriverUserId}}", "detail"],
+              "query": [
+                { "key": "range", "value": "today" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /analytics/weighing-stations/:id/detail (owner/driver)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/analytics/weighing-stations/{{ownerWeighingStationId}}/detail?range=today",
+              "host": ["{{baseUrl}}"],
+              "path": ["analytics", "weighing-stations", "{{ownerWeighingStationId}}", "detail"],
+              "query": [
+                { "key": "range", "value": "today" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /analytics/harvest-areas/:id/detail (owner/driver)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/analytics/harvest-areas/{{harvestAreaId}}/detail?range=today",
+              "host": ["{{baseUrl}}"],
+              "path": ["analytics", "harvest-areas", "{{harvestAreaId}}", "detail"],
+              "query": [
+                { "key": "range", "value": "today" }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Files",
       "description": "Upload JWT: **driverAccessToken** khi gắn ảnh phiếu (Receipts).\n\n**`FILE_DRIVER=s3-presigned`:** (1) `POST /files/upload` JSON `fileName` + `fileSize` → `uploadSignedUrl` + `file.id`. `fileSize` dùng để kiểm tra giới hạn trên API (≤ maxFileSize). (2) `PUT` body binary lên `uploadSignedUrl` (không Bearer). Chỉ đuôi jpg/jpeg/png/gif.\n\n**`FILE_DRIVER=local` hoặc `s3`:** **POST /files/upload (multipart)** bên dưới.",
       "item": [
