@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import IORedis from 'ioredis';
 import { Queue } from 'bullmq';
+import { createBullmqConnection } from '../bullmq-ioredis';
 import {
   EXPO_PUSH_JOB_SEND_NAME,
   EXPO_PUSH_QUEUE_NAME,
@@ -17,7 +17,7 @@ export class ExpoPushQueue {
       throw new Error('Missing REDIS_URL (required for Expo push queue).');
     }
 
-    const connection = new IORedis(redisUrl);
+    const connection = createBullmqConnection(redisUrl);
     this.queue = new Queue(EXPO_PUSH_QUEUE_NAME, {
       connection,
     });

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
+import { createBullmqConnection } from '../infrastructure/bullmq-ioredis';
 import {
   EXPO_PUSH_JOB_SEND_NAME,
   EXPO_PUSH_QUEUE_NAME,
@@ -29,7 +30,7 @@ export class ExpoPushWorker implements OnModuleInit, OnModuleDestroy {
       throw new Error('Missing REDIS_URL (required for Expo push worker).');
     }
 
-    this.connection = new IORedis(redisUrl);
+    this.connection = createBullmqConnection(redisUrl);
 
     this.worker = new Worker<ExpoPushSendJobData, void, string>(
       EXPO_PUSH_QUEUE_NAME,
