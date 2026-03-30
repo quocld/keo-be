@@ -8,6 +8,7 @@ import appConfig from '../../config/app.config';
 import { NotificationEntity } from '../../ops/infrastructure/persistence/relational/entities/notification.entity';
 import { NotificationDeliveryEntity } from '../infrastructure/persistence/relational/entities/notification-delivery.entity';
 import { UserExpoPushDeviceEntity } from '../infrastructure/persistence/relational/entities/user-expo-push-device.entity';
+import { BetterStackLogger } from '../../logging/better-stack.logger';
 import { ExpoPushDeliveryService } from '../services/expo-push-delivery.service';
 import { ExpoPushWorker } from './expo-push.worker';
 
@@ -30,6 +31,6 @@ import { ExpoPushWorker } from './expo-push.worker';
       UserExpoPushDeviceEntity,
     ]),
   ],
-  providers: [ExpoPushDeliveryService, ExpoPushWorker],
+  providers: [BetterStackLogger, ExpoPushDeliveryService, ExpoPushWorker],
 })
 export class ExpoPushWorkerModule {}

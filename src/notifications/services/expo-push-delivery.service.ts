@@ -5,7 +5,10 @@ import { Expo } from 'expo-server-sdk';
 import { NotificationEntity } from '../../ops/infrastructure/persistence/relational/entities/notification.entity';
 import { NotificationDeliveryEntity } from '../infrastructure/persistence/relational/entities/notification-delivery.entity';
 import { UserExpoPushDeviceEntity } from '../infrastructure/persistence/relational/entities/user-expo-push-device.entity';
-import { type ExpoPushSendJobData } from '../worker/expo-push-job.types';
+import {
+  expoPushWorkerLog,
+  type ExpoPushSendJobData,
+} from '../worker/expo-push-job.types';
 
 const expoTokenErrorCodesToDisable = new Set([
   'DeviceNotRegistered',
@@ -31,6 +34,7 @@ export class ExpoPushDeliveryService {
     pushData: ExpoPushSendJobData['pushData'],
     attemptCount: number,
   ): Promise<void> {
+    const deliveryStats = { sent: 0, failed: 0 };
     const notification = await this.notificationsRepository.findOne({
       where: { id: notificationId },
       relations: ['user'],
@@ -38,14 +42,18 @@ export class ExpoPushDeliveryService {
 
     if (!notification) {
       this.logger.warn(
-        `Skip Expo push: notification not found (id=${notificationId})`,
+        expoPushWorkerLog(
+          `skip push: notification not found (id=${notificationId})`,
+        ),
       );
       return;
     }
 
     if (!notification.user?.id) {
       this.logger.warn(
-        `Skip Expo push: notification has no user (id=${notificationId})`,
+        expoPushWorkerLog(
+          `skip push: notification has no user (id=${notificationId})`,
+        ),
       );
       return;
     }
@@ -64,6 +72,11 @@ export class ExpoPushDeliveryService {
     });
 
     if (!devices.length) {
+      this.logger.warn(
+        expoPushWorkerLog(
+          `skip push: no enabled devices (notificationId=${notificationId}, userId=${notification.user.id})`,
+        ),
+      );
       return;
     }
 
@@ -85,18 +98,26 @@ export class ExpoPushDeliveryService {
       }));
 
     if (!messages.length) {
+      this.logger.warn(
+        expoPushWorkerLog(
+          `skip push: no valid Expo tokens (notificationId=${notificationId})`,
+        ),
+      );
       return;
     }
 
     // Create/update delivery rows for this attempt.
     for (const message of messages) {
-      await this.upsertDelivery({
-        notification,
-        expoPushToken: message.to as string,
-        status: 'queued',
-        attemptCount,
-        errorCode: null,
-      });
+      await this.upsertDelivery(
+        {
+          notification,
+          expoPushToken: message.to as string,
+          status: 'queued',
+          attemptCount,
+          errorCode: null,
+        },
+        deliveryStats,
+      );
     }
 
     const chunks = expo.chunkPushNotifications(messages);
@@ -128,30 +149,39 @@ export class ExpoPushDeliveryService {
         // Immediate ticket errors mean Expo couldn't enqueue; mark as failed.
         if (ticket?.status === 'error') {
           const detailsError = ticket.details?.error;
-          await this.upsertDelivery({
-            notification,
-            expoPushToken: token,
-            status: 'failed',
-            attemptCount,
-            errorCode: detailsError ?? ticket.message ?? 'ExpoPushTicketError',
-          });
+          await this.upsertDelivery(
+            {
+              notification,
+              expoPushToken: token,
+              status: 'failed',
+              attemptCount,
+              errorCode:
+                detailsError ?? ticket.message ?? 'ExpoPushTicketError',
+            },
+            deliveryStats,
+          );
 
           if (detailsError && expoTokenErrorCodesToDisable.has(detailsError)) {
             failedTokensToDisable.push(token);
           } else {
             shouldRetry = true;
             this.logger.warn(
-              `Expo push ticket failed: notificationId=${notificationId}, token=${token}, error=${detailsError ?? ticket.message}`,
+              expoPushWorkerLog(
+                `ticket failed notificationId=${notificationId} token=${token} error=${detailsError ?? ticket.message}`,
+              ),
             );
           }
         } else {
-          await this.upsertDelivery({
-            notification,
-            expoPushToken: token,
-            status: 'failed',
-            attemptCount,
-            errorCode: 'ExpoPushTicketError',
-          });
+          await this.upsertDelivery(
+            {
+              notification,
+              expoPushToken: token,
+              status: 'failed',
+              attemptCount,
+              errorCode: 'ExpoPushTicketError',
+            },
+            deliveryStats,
+          );
           shouldRetry = true;
         }
       }
@@ -168,6 +198,14 @@ export class ExpoPushDeliveryService {
           { isEnabled: false },
         );
       }
+      this.logDeliverySummary(
+        notificationId,
+        attemptCount,
+        messages.length,
+        deliveryStats,
+        shouldRetry,
+        'ticket_only',
+      );
       if (shouldRetry) {
         throw new Error(`Expo push ticket delivery had failures`);
       }
@@ -182,25 +220,32 @@ export class ExpoPushDeliveryService {
         const token = receiptIdToToken.get(receiptId);
 
         if (receipt.status === 'ok') {
-          await this.upsertDelivery({
-            notification,
-            expoPushToken: token ?? '',
-            status: 'sent',
-            attemptCount,
-            errorCode: null,
-          });
+          await this.upsertDelivery(
+            {
+              notification,
+              expoPushToken: token ?? '',
+              status: 'sent',
+              attemptCount,
+              errorCode: null,
+            },
+            deliveryStats,
+          );
           continue;
         }
 
         const detailsError = receipt.details?.error;
 
-        await this.upsertDelivery({
-          notification,
-          expoPushToken: token ?? '',
-          status: 'failed',
-          attemptCount,
-          errorCode: detailsError ?? receipt.message ?? 'ExpoPushReceiptError',
-        });
+        await this.upsertDelivery(
+          {
+            notification,
+            expoPushToken: token ?? '',
+            status: 'failed',
+            attemptCount,
+            errorCode:
+              detailsError ?? receipt.message ?? 'ExpoPushReceiptError',
+          },
+          deliveryStats,
+        );
 
         if (
           token &&
@@ -214,7 +259,9 @@ export class ExpoPushDeliveryService {
         }
 
         this.logger.warn(
-          `Expo push failed: notificationId=${notificationId}, error=${detailsError}, receiptId=${receiptId}`,
+          expoPushWorkerLog(
+            `receipt failed notificationId=${notificationId} error=${detailsError} receiptId=${receiptId}`,
+          ),
         );
       }
     }
@@ -227,19 +274,57 @@ export class ExpoPushDeliveryService {
       );
     }
 
+    this.logDeliverySummary(
+      notificationId,
+      attemptCount,
+      messages.length,
+      deliveryStats,
+      shouldRetry,
+      'receipts',
+    );
+
     if (shouldRetry) {
       throw new Error(`Expo push delivery had failed receipts`);
     }
   }
 
-  private async upsertDelivery(args: {
-    notification: NotificationEntity;
-    expoPushToken: string;
-    status: string;
-    attemptCount: number;
-    errorCode: string | null;
-  }): Promise<void> {
+  private logDeliverySummary(
+    notificationId: string,
+    attemptCount: number,
+    tokenCount: number,
+    stats: { sent: number; failed: number },
+    shouldRetry: boolean,
+    phase: 'ticket_only' | 'receipts',
+  ): void {
+    const base = expoPushWorkerLog(
+      `summary notificationId=${notificationId} attempt=${attemptCount} tokens=${tokenCount} sent=${stats.sent} failed=${stats.failed} phase=${phase} willRetry=${shouldRetry}`,
+    );
+    if (stats.failed === 0 && !shouldRetry) {
+      this.logger.log(base);
+    } else {
+      this.logger.warn(base);
+    }
+  }
+
+  private async upsertDelivery(
+    args: {
+      notification: NotificationEntity;
+      expoPushToken: string;
+      status: string;
+      attemptCount: number;
+      errorCode: string | null;
+    },
+    stats?: { sent: number; failed: number },
+  ): Promise<void> {
     if (!args.expoPushToken) return;
+
+    if (stats) {
+      if (args.status === 'sent') {
+        stats.sent += 1;
+      } else if (args.status === 'failed') {
+        stats.failed += 1;
+      }
+    }
 
     const existing = await this.deliveriesRepository.findOne({
       where: {

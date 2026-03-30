@@ -10,6 +10,7 @@ import { createBullmqConnection } from '../infrastructure/bullmq-ioredis';
 import {
   EXPO_PUSH_JOB_SEND_NAME,
   EXPO_PUSH_QUEUE_NAME,
+  expoPushWorkerLog,
   type ExpoPushSendJobData,
 } from './expo-push-job.types';
 import { ExpoPushDeliveryService } from '../services/expo-push-delivery.service';
@@ -51,9 +52,23 @@ export class ExpoPushWorker implements OnModuleInit, OnModuleDestroy {
       },
     );
 
+    this.worker.on('completed', (job) => {
+      if (job.name !== EXPO_PUSH_JOB_SEND_NAME) {
+        return;
+      }
+      const notificationId = job.data?.notificationId;
+      this.logger.log(
+        expoPushWorkerLog(
+          `job completed jobId=${job.id} notificationId=${notificationId ?? 'unknown'} attempts=${job.attemptsMade}`,
+        ),
+      );
+    });
+
     this.worker.on('failed', (job, err) => {
       this.logger.error(
-        `Expo push job failed (jobId=${job?.id}, name=${job?.name}): ${String(err)}`,
+        expoPushWorkerLog(
+          `job failed jobId=${job?.id} notificationId=${job?.data?.notificationId} name=${job?.name}: ${String(err)}`,
+        ),
       );
     });
   }
