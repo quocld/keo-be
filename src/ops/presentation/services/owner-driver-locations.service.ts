@@ -1,9 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtPayloadType } from '../../../auth/strategies/types/jwt-payload.type';
+import { infinityPagination } from '../../../utils/infinity-pagination';
+import { InfinityPaginationResponseDto } from '../../../utils/dto/infinity-pagination-response.dto';
 import { RoleEnum } from '../../../roles/roles.enum';
 import { UserEntity } from '../../../users/infrastructure/persistence/relational/entities/user.entity';
+import { DriverLocationPointDto } from '../../dto/driver-location-point.dto';
+import { QueryDriverLocationHistoryDto } from '../../dto/query-driver-location-history.dto';
 import { DriverLocationEntity } from '../../infrastructure/persistence/relational/entities/driver-location.entity';
 import {
   LocationCacheService,
@@ -105,5 +109,56 @@ export class OwnerDriverLocationsService {
       driverId,
       location: cached[driverId] ?? fallback[driverId] ?? null,
     }));
+  }
+
+  async listDriverLocationHistory(
+    actor: JwtPayloadType,
+    driverId: number,
+    query: QueryDriverLocationHistoryDto,
+  ): Promise<InfinityPaginationResponseDto<DriverLocationPointDto>> {
+    if (this.opsAuthorizationService.isAdmin(actor)) {
+      // any driver
+    } else if (this.opsAuthorizationService.isOwner(actor)) {
+      await this.opsAuthorizationService.assertOwnerManagesDriver(
+        actor,
+        driverId,
+      );
+    } else {
+      throw new ForbiddenException({ error: 'forbidden' });
+    }
+
+    const page = query.page ?? 1;
+    const limit = Math.min(query.limit ?? 50, 200);
+    const skip = (page - 1) * limit;
+
+    const qb = this.driverLocationsRepository
+      .createQueryBuilder('dl')
+      .where('dl.driver_id = :driverId', { driverId })
+      .orderBy('dl.timestamp', 'ASC')
+      .skip(skip)
+      .take(limit);
+
+    if (query.timestampFrom) {
+      qb.andWhere('dl.timestamp >= :tf', {
+        tf: new Date(query.timestampFrom),
+      });
+    }
+    if (query.timestampTo) {
+      qb.andWhere('dl.timestamp <= :tt', {
+        tt: new Date(query.timestampTo),
+      });
+    }
+
+    const rows = await qb.getMany();
+    const data = rows.map((dl) => ({
+      id: dl.id,
+      latitude: Number(dl.latitude),
+      longitude: Number(dl.longitude),
+      speed: dl.speed != null ? Number(dl.speed) : null,
+      accuracy: dl.accuracy != null ? Number(dl.accuracy) : null,
+      timestamp: new Date(dl.timestamp).toISOString(),
+    }));
+
+    return infinityPagination(data, { page, limit });
   }
 }

@@ -1,9 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { JwtPayloadType } from '../../../auth/strategies/types/jwt-payload.type';
+import { infinityPagination } from '../../../utils/infinity-pagination';
+import { InfinityPaginationResponseDto } from '../../../utils/dto/infinity-pagination-response.dto';
 import { NotificationEntity } from '../../../ops/infrastructure/persistence/relational/entities/notification.entity';
 import { ExpoPushQueue } from '../../infrastructure/queues/expo-push.queue';
 import { type ExpoPushSendJobData } from '../../worker/expo-push-job.types';
+import { NotificationInboxItemDto } from '../dto/notification-inbox-item.dto';
+import { QueryNotificationsDto } from '../dto/query-notifications.dto';
 
 type CreateNotificationAndEnqueueArgs = {
   userId: number;
@@ -44,5 +53,74 @@ export class NotificationsService {
     });
 
     return saved;
+  }
+
+  async findManyForUser(
+    actor: JwtPayloadType,
+    query: QueryNotificationsDto,
+  ): Promise<InfinityPaginationResponseDto<NotificationInboxItemDto>> {
+    if (!actor?.id) {
+      throw new UnauthorizedException();
+    }
+
+    const uid = Number(actor.id);
+    const page = query.page ?? 1;
+    const limit = Math.min(query.limit ?? 20, 100);
+    const skip = (page - 1) * limit;
+
+    const qb = this.notificationsRepository
+      .createQueryBuilder('n')
+      .where('n.user_id = :uid', { uid })
+      .orderBy('n.created_at', 'DESC')
+      .skip(skip)
+      .take(limit);
+
+    if (query.isRead !== undefined) {
+      qb.andWhere('n.is_read = :ir', { ir: query.isRead });
+    }
+
+    const rows = await qb.getMany();
+    const data: NotificationInboxItemDto[] = rows.map((n) => ({
+      id: n.id,
+      title: n.title,
+      message: n.message,
+      type: n.type,
+      isRead: n.isRead,
+      createdAt: n.createdAt,
+    }));
+
+    return infinityPagination(data, { page, limit });
+  }
+
+  async markAsRead(actor: JwtPayloadType, id: string): Promise<void> {
+    if (!actor?.id) {
+      throw new UnauthorizedException();
+    }
+
+    const res = await this.notificationsRepository
+      .createQueryBuilder()
+      .update(NotificationEntity)
+      .set({ isRead: true })
+      .where('id = :id', { id })
+      .andWhere('user_id = :uid', { uid: Number(actor.id) })
+      .execute();
+
+    if (!res.affected) {
+      throw new NotFoundException();
+    }
+  }
+
+  async markAllAsRead(actor: JwtPayloadType): Promise<void> {
+    if (!actor?.id) {
+      throw new UnauthorizedException();
+    }
+
+    await this.notificationsRepository
+      .createQueryBuilder()
+      .update(NotificationEntity)
+      .set({ isRead: true })
+      .where('user_id = :uid', { uid: Number(actor.id) })
+      .andWhere('is_read = false')
+      .execute();
   }
 }

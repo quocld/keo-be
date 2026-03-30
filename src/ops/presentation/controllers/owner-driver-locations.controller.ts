@@ -3,6 +3,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Query,
   Request,
   UseGuards,
@@ -13,6 +14,7 @@ import { JwtPayloadType } from '../../../auth/strategies/types/jwt-payload.type'
 import { Roles } from '../../../roles/roles.decorator';
 import { RoleEnum } from '../../../roles/roles.enum';
 import { RolesGuard } from '../../../roles/roles.guard';
+import { QueryDriverLocationHistoryDto } from '../../dto/query-driver-location-history.dto';
 import { OwnerDriverLocationsService } from '../services/owner-driver-locations.service';
 
 @ApiBearerAuth()
@@ -57,5 +59,24 @@ export class OwnerDriverLocationsController {
       page: p,
       limit: l,
     };
+  }
+
+  @ApiOkResponse({
+    description:
+      'Paged driver roaming history (driver_locations) for a managed driver.',
+  })
+  @Get(':driverId/history')
+  @HttpCode(HttpStatus.OK)
+  @Roles(RoleEnum.owner, RoleEnum.admin)
+  history(
+    @Request() request: { user: JwtPayloadType },
+    @Param('driverId') driverId: string,
+    @Query() query: QueryDriverLocationHistoryDto,
+  ) {
+    return this.ownerDriverLocationsService.listDriverLocationHistory(
+      request.user,
+      Number(driverId),
+      query,
+    );
   }
 }

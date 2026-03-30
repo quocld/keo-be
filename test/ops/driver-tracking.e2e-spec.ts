@@ -128,6 +128,60 @@ describe('Ops Driver tracking (locations)', () => {
       .expect(204);
   });
 
+  it('should GET /trips/:id/locations for driver and owner (vehicle_locations)', async () => {
+    const asDriver = await request(APP_URL)
+      .get(`/api/v1/trips/${tripId}/locations`)
+      .auth(driverToken, { type: 'bearer' })
+      .expect(200);
+    expect(asDriver.body.data.length).toBeGreaterThanOrEqual(1);
+    expect(asDriver.body.hasNextPage).toBeDefined();
+    expect(asDriver.body.data[0].latitude).toBeCloseTo(10.3333, 4);
+
+    const asOwner = await request(APP_URL)
+      .get(`/api/v1/trips/${tripId}/locations`)
+      .auth(ownerToken, { type: 'bearer' })
+      .expect(200);
+    expect(asOwner.body.data.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('should GET /drivers/me/locations (driver roaming history)', async () => {
+    const res = await request(APP_URL)
+      .get('/api/v1/drivers/me/locations')
+      .auth(driverToken, { type: 'bearer' })
+      .expect(200);
+    expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.hasNextPage).toBeDefined();
+    expect(res.body.data[0].latitude).toBeCloseTo(10.12345678, 6);
+  });
+
+  it('should GET /owner/drivers/locations/:driverId/history', async () => {
+    const res = await request(APP_URL)
+      .get(`/api/v1/owner/drivers/locations/${driverId}/history`)
+      .auth(ownerToken, { type: 'bearer' })
+      .expect(200);
+    expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.hasNextPage).toBeDefined();
+  });
+
+  it('should GET /notifications and POST read-all; 404 on unknown id read', async () => {
+    const list = await request(APP_URL)
+      .get('/api/v1/notifications')
+      .auth(driverToken, { type: 'bearer' })
+      .expect(200);
+    expect(Array.isArray(list.body.data)).toBe(true);
+    expect(list.body.hasNextPage).toBeDefined();
+
+    await request(APP_URL)
+      .post('/api/v1/notifications/read-all')
+      .auth(driverToken, { type: 'bearer' })
+      .expect(204);
+
+    await request(APP_URL)
+      .patch('/api/v1/notifications/00000000-0000-0000-0000-000000000000/read')
+      .auth(driverToken, { type: 'bearer' })
+      .expect(404);
+  });
+
   it('should not let owner2 see owner1 managed driver location', async () => {
     const owner2Email = `owner2.track.${suffix}@example.com`;
     await request(APP_URL)

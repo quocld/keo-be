@@ -1460,7 +1460,7 @@
     },
     {
       "name": "Tracking / Locations",
-      "description": "Driver GPS tracking MVP v2.\n\n- **Driver ping (ngoài trip):** `POST /drivers/me/location` (204)\n- **Driver ping (trong trip):** `POST /trips/:id/locations` (204) — trip phải `in_progress`\n- **Owner live map polling:** `GET /owner/drivers/locations/latest` (200) — trả last-known cho managed drivers (Redis ưu tiên, fallback DB).\n\nCần chạy **Setup – Ops tokens** trước để có `driverAccessToken` / `ownerAccessToken`.",
+      "description": "Driver GPS tracking MVP v2.\n\n- **Driver ping (ngoài trip):** `POST /drivers/me/location` (204)\n- **Driver ping (trong trip):** `POST /trips/:id/locations` (204) — trip phải `in_progress`\n- **Lịch sử trip:** `GET /trips/:id/locations` — `vehicle_locations` (driver|owner|admin)\n- **Lịch sử roaming:** `GET /drivers/me/locations` (driver) — `driver_locations`\n- **Owner — lịch sử tài xế:** `GET /owner/drivers/locations/:driverId/history`\n- **Owner live map polling:** `GET /owner/drivers/locations/latest` (200) — last-known (Redis + DB).\n\nCần **Setup – Ops tokens**; biến `{{tripId}}` / `{{managedDriverUserId}}` khi có flow Trip / Owner drivers.",
       "item": [
         {
           "name": "POST /drivers/me/location (driver ping – ngoài trip)",
@@ -1500,6 +1500,65 @@
               "path": ["trips", "{{tripId}}", "locations"]
             },
             "description": "Tạo trip `startNow: true` (hoặc start) trước để trip ở trạng thái `in_progress`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /trips/:id/locations (vehicle_locations history)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{driverAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/trips/{{tripId}}/locations?page=1&limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["trips", "{{tripId}}", "locations"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "50" }
+              ]
+            },
+            "description": "Polyline/replay theo trip. Query: `timestampFrom`, `timestampTo` (ISO) tùy chọn."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /drivers/me/locations (roaming history)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{driverAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/drivers/me/locations?page=1&limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["drivers", "me", "locations"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "50" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /owner/drivers/locations/:driverId/history",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/owner/drivers/locations/{{managedDriverUserId}}/history?page=1&limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["owner", "drivers", "locations", "{{managedDriverUserId}}", "history"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "50" }
+              ]
+            },
+            "description": "Tài xế phải thuộc owner (hoặc admin). Dùng `managedDriverUserId` sau **POST /owner/drivers**."
           },
           "response": []
         },
@@ -2024,6 +2083,105 @@
       ]
     },
     {
+      "name": "Notifications",
+      "description": "**Inbox:** `GET /notifications` (lọc `isRead`), `PATCH /notifications/:id/read`, `POST /notifications/read-all` — JWT user chỉ thấy noti của mình.\n\n**Expo:** đăng ký token (`expo-notifications`). Chạy **Setup – Ops tokens**. `expoPushToken` từ app; `platform` ios|android; `enabled: false` để tắt. Biến `{{expoPushToken}}`, `{{notificationId}}` (UUID từ GET inbox).",
+      "item": [
+        {
+          "name": "GET /notifications (inbox)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{driverAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "isRead", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Query `isRead` = true|false (bật nếu cần lọc)."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /notifications/:id/read",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{driverAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/{{notificationId}}/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "{{notificationId}}", "read"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /notifications/read-all",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{driverAccessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/read-all",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "read-all"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /notifications/expo/register (driver)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{driverAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expoPushToken\": \"{{expoPushToken}}\",\n  \"platform\": \"android\",\n  \"easProjectId\": \"\",\n  \"easEnvironment\": \"\",\n  \"enabled\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notifications/expo/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "expo", "register"]
+            },
+            "description": "HTTP 200. Response: entity thiết bị push (user, expoPushToken, platform, isEnabled, …). Xóa hoặc để rỗng `easProjectId`/`easEnvironment` nếu không dùng."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /notifications/expo/register (owner)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expoPushToken\": \"{{expoPushToken}}\",\n  \"platform\": \"ios\",\n  \"easProjectId\": \"\",\n  \"easEnvironment\": \"\",\n  \"enabled\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notifications/expo/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "expo", "register"]
+            },
+            "description": "Giống bản driver; dùng `ownerAccessToken` sau khi login owner."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Files",
       "description": "Upload JWT: **driverAccessToken** khi gắn ảnh phiếu (Receipts).\n\n**`FILE_DRIVER=s3-presigned`:** (1) `POST /files/upload` JSON `fileName` + `fileSize` → `uploadSignedUrl` + `file.id`. `fileSize` dùng để kiểm tra giới hạn trên API (≤ maxFileSize). (2) `PUT` body binary lên `uploadSignedUrl` (không Bearer). Chỉ đuôi jpg/jpeg/png/gif.\n\n**`FILE_DRIVER=local` hoặc `s3`:** **POST /files/upload (multipart)** bên dưới.",
       "item": [
@@ -2159,6 +2317,8 @@
     { "key": "fileUploadSize", "value": "1024" },
     { "key": "uploadedFileId", "value": "" },
     { "key": "vehicleId", "value": "" },
-    { "key": "vehicleExpenseId", "value": "" }
+    { "key": "vehicleExpenseId", "value": "" },
+    { "key": "expoPushToken", "value": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]" },
+    { "key": "notificationId", "value": "" }
   ]
 }

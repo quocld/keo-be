@@ -18,6 +18,7 @@ import { HarvestAreasController } from './presentation/controllers/harvest-areas
 import { WeighingStationsController } from './presentation/controllers/weighing-stations.controller';
 import { ReceiptsController } from './presentation/controllers/receipts.controller';
 import { TripsController } from './presentation/controllers/trips.controller';
+import { DriverLocationHistoryController } from './presentation/controllers/driver-location-history.controller';
 import { DriverLocationsController } from './presentation/controllers/driver-locations.controller';
 import { TripLocationsController } from './presentation/controllers/trip-locations.controller';
 import { OwnerDriverHarvestAreasController } from './presentation/controllers/owner-driver-harvest-areas.controller';
@@ -68,6 +69,7 @@ import { TripLocationsService } from './presentation/services/trip-locations.ser
     ReceiptsController,
     TripsController,
     DriverLocationsController,
+    DriverLocationHistoryController,
     TripLocationsController,
     OwnerDriverHarvestAreasController,
     OwnerDriverVehicleController,

@@ -172,6 +172,27 @@ export class TripsService {
     return this.tripsRepository.save(trip);
   }
 
+  /**
+   * Load trip and assert driver / harvest-area owner / admin can read (e.g. location history).
+   */
+  async getTripForReadAccess(
+    actor: JwtPayloadType,
+    tripId: string,
+  ): Promise<TripEntity> {
+    const trip = await this.tripsRepository.findOne({
+      where: { id: tripId },
+      relations: ['harvestArea', 'harvestArea.owner', 'driver'],
+    });
+
+    if (!trip) {
+      throw new NotFoundException({ error: 'tripNotFound' });
+    }
+
+    await this.assertCanManageTripLifecycle(actor, trip);
+
+    return trip;
+  }
+
   private async assertCanManageTripLifecycle(
     actor: JwtPayloadType,
     trip: TripEntity,
