@@ -97,11 +97,15 @@ export class LocationCacheService {
     for (let i = 0; i < driverIds.length; i++) {
       const driverId = driverIds[i];
       const [, value] = results?.[i] ?? [];
-      if (!value) {
+      if (value == null) {
         out[driverId] = null;
         continue;
       }
       try {
+        if (typeof value !== 'string') {
+          out[driverId] = null;
+          continue;
+        }
         out[driverId] = JSON.parse(value) as LastKnownLocation;
       } catch {
         out[driverId] = null;
