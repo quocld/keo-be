@@ -1,3 +1,4 @@
+import { Exclude } from 'class-transformer';
 import {
   Column,
   CreateDateColumn,
@@ -30,6 +31,7 @@ export class UserEntity extends EntityRelationalHelper {
   email: string | null;
 
   @Column({ nullable: true })
+  @Exclude({ toPlainOnly: true })
   password?: string;
 
   @Column({ default: AuthProvidersEnum.email })
