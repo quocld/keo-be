@@ -55,10 +55,10 @@ export class UserEntity extends EntityRelationalHelper {
   @JoinColumn()
   photo?: FileEntity | null;
 
-  @Column({ default: false })
+  @Column({ name: 'is_custom_avatar', default: false })
   isCustomAvatar: boolean;
 
-  @Column({ type: String, nullable: true })
+  @Column({ name: 'app_avatar', type: String, nullable: true })
   appAvatar: string | null;
 
   @ManyToOne(() => RoleEntity, {
