@@ -671,6 +671,19 @@ export class ReceiptsService {
           }
         }
 
+        // Cộng trọng lượng phiếu vào current_tons của khu khai thác
+        const haRepo = em.getRepository(HarvestAreaEntity);
+        const haEntity = await haRepo.findOne({
+          where: { id: receipt.harvestArea.id },
+        });
+        if (haEntity) {
+          const nextHaTons = Number(haEntity.currentTons) + Number(row.weight);
+          haEntity.currentTons = (Math.round(nextHaTons * 100) / 100).toFixed(
+            2,
+          );
+          await haRepo.save(haEntity);
+        }
+
         return receiptRepo.findOneOrFail({
           where: { id: receiptId },
           relations: [
