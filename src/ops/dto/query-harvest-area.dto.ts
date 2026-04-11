@@ -1,5 +1,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNumber, IsOptional, ValidateNested } from 'class-validator';
+import {
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 import { Transform, Type, plainToInstance } from 'class-transformer';
 import { HarvestAreaStatusEnum } from '../domain/harvest-area-status.enum';
 
@@ -13,6 +19,14 @@ export class FilterHarvestAreaDto {
   @IsOptional()
   @IsNumber()
   ownerId?: number | null;
+
+  @ApiPropertyOptional({
+    example: 'Khu A',
+    description: 'Tìm kiếm theo tên khu (không phân biệt hoa/thường)',
+  })
+  @IsOptional()
+  @IsString()
+  name?: string | null;
 }
 
 export class QueryHarvestAreaDto {

@@ -5,7 +5,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, Repository } from 'typeorm';
 import { JwtPayloadType } from '../../../auth/strategies/types/jwt-payload.type';
 import { UserEntity } from '../../../users/infrastructure/persistence/relational/entities/user.entity';
 import { HarvestAreaEntity } from '../../infrastructure/persistence/relational/entities/harvest-area.entity';
@@ -101,6 +101,12 @@ export class HarvestAreasService {
         });
       }
 
+      if (query.filters?.name) {
+        qb.andWhere('ha.name ILIKE :name', {
+          name: `%${query.filters.name}%`,
+        });
+      }
+
       const data = await qb.getMany();
       return infinityPagination(data, { page, limit });
     }
@@ -109,6 +115,10 @@ export class HarvestAreasService {
 
     if (query.filters?.status) {
       where.status = query.filters.status;
+    }
+
+    if (query.filters?.name) {
+      where.name = ILike(`%${query.filters.name}%`);
     }
 
     if (this.opsAuthorizationService.isOwner(actor)) {

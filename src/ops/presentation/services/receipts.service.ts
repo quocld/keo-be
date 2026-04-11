@@ -15,6 +15,8 @@ import { RejectReceiptDto } from '../../dto/reject-receipt.dto';
 import { ApproveReceiptDto } from '../../dto/approve-receipt.dto';
 import { QueryReceiptDto } from '../../dto/query-receipt.dto';
 import { QueryReceiptsByWeighingStationDto } from '../../dto/query-receipts-by-weighing-station.dto';
+import { QueryReceiptsByHarvestAreaDto } from '../../dto/query-receipts-by-harvest-area.dto';
+import { HarvestAreaReceiptSummaryDto } from '../../dto/harvest-area-receipt-summary.response.dto';
 import { ReceiptEntity } from '../../infrastructure/persistence/relational/entities/receipt.entity';
 import { ReceiptImageEntity } from '../../infrastructure/persistence/relational/entities/receipt-image.entity';
 import { FinanceRecordEntity } from '../../infrastructure/persistence/relational/entities/finance-record.entity';
@@ -27,6 +29,7 @@ import { infinityPagination } from '../../../utils/infinity-pagination';
 import { InfinityPaginationResponseDto } from '../../../utils/dto/infinity-pagination-response.dto';
 import { NotificationsService } from '../../../notifications/presentation/services/notifications.service';
 import { WeighingStationsService } from './weighing-stations.service';
+import { HarvestAreasService } from './harvest-areas.service';
 
 function revenueFromReceiptAmount(amountStr: string): string {
   const a = Number(amountStr);
@@ -52,6 +55,7 @@ export class ReceiptsService {
     private readonly filesService: FilesService,
     private readonly notificationsService: NotificationsService,
     private readonly weighingStationsService: WeighingStationsService,
+    private readonly harvestAreasService: HarvestAreasService,
   ) {}
 
   async findMany(
@@ -178,6 +182,113 @@ export class ReceiptsService {
     await Promise.all(data.map((r) => this.hydrateReceiptImageUrls(r)));
 
     return infinityPagination(data, { page, limit });
+  }
+
+  async findManyByHarvestArea(
+    actor: JwtPayloadType,
+    harvestAreaId: string,
+    query: QueryReceiptsByHarvestAreaDto,
+  ): Promise<InfinityPaginationResponseDto<ReceiptEntity>> {
+    if (
+      !this.opsAuthorizationService.isDriver(actor) &&
+      !this.opsAuthorizationService.isOwner(actor) &&
+      !this.opsAuthorizationService.isAdmin(actor)
+    ) {
+      throw new ForbiddenException({ error: 'forbidden' });
+    }
+
+    // Verify the actor has access to this harvest area (throws 403/404 if not)
+    await this.harvestAreasService.findOne(actor, harvestAreaId);
+
+    const page = query.page ?? 1;
+    const limit = Math.min(query.limit ?? 10, 50);
+    const skip = (page - 1) * limit;
+
+    const qb = this.receiptsRepository
+      .createQueryBuilder('r')
+      .leftJoinAndSelect('r.images', 'img')
+      .leftJoinAndSelect('r.harvestArea', 'ha')
+      .leftJoinAndSelect('r.weighingStation', 'ws')
+      .leftJoinAndSelect('r.driver', 'dr')
+      .leftJoinAndSelect('r.financeRecord', 'fr')
+      .where('r.harvest_area_id = :haId', { haId: harvestAreaId })
+      .orderBy('r.receiptDate', 'DESC')
+      .skip(skip)
+      .take(limit);
+
+    if (this.opsAuthorizationService.isDriver(actor)) {
+      qb.andWhere('r.driver_id = :driverId', { driverId: actor.id });
+    }
+
+    if (query.status) {
+      qb.andWhere('r.status = :status', { status: query.status });
+    }
+
+    if (query.receiptDateFrom) {
+      qb.andWhere('r.receipt_date >= :from', {
+        from: new Date(query.receiptDateFrom),
+      });
+    }
+
+    if (query.receiptDateTo) {
+      qb.andWhere('r.receipt_date <= :to', {
+        to: new Date(query.receiptDateTo),
+      });
+    }
+
+    const data = await qb.getMany();
+
+    await Promise.all(data.map((r) => this.hydrateReceiptImageUrls(r)));
+
+    return infinityPagination(data, { page, limit });
+  }
+
+  async getReceiptSummaryByHarvestArea(
+    actor: JwtPayloadType,
+    harvestAreaId: string,
+  ): Promise<HarvestAreaReceiptSummaryDto> {
+    if (
+      !this.opsAuthorizationService.isDriver(actor) &&
+      !this.opsAuthorizationService.isOwner(actor) &&
+      !this.opsAuthorizationService.isAdmin(actor)
+    ) {
+      throw new ForbiddenException({ error: 'forbidden' });
+    }
+
+    // Verify the actor has access to this harvest area (throws 403/404 if not)
+    await this.harvestAreasService.findOne(actor, harvestAreaId);
+
+    const qb = this.receiptsRepository
+      .createQueryBuilder('r')
+      .select('COUNT(*) FILTER (WHERE r.status = :approved)', 'approvedCount')
+      .addSelect(
+        'COALESCE(SUM(r.weight::numeric) FILTER (WHERE r.status = :approved), 0)',
+        'approvedTotalWeight',
+      )
+      .addSelect(
+        'COALESCE(SUM(r.amount::numeric) FILTER (WHERE r.status = :approved), 0)',
+        'approvedTotalAmount',
+      )
+      .addSelect('COUNT(*) FILTER (WHERE r.status = :pending)', 'pendingCount')
+      .addSelect('COUNT(*)', 'totalCount')
+      .where('r.harvest_area_id = :haId', { haId: harvestAreaId })
+      .andWhere('r.deleted_at IS NULL')
+      .setParameter('approved', ReceiptStatusEnum.approved)
+      .setParameter('pending', ReceiptStatusEnum.pending);
+
+    if (this.opsAuthorizationService.isDriver(actor)) {
+      qb.andWhere('r.driver_id = :driverId', { driverId: actor.id });
+    }
+
+    const row = await qb.getRawOne<Record<string, string>>();
+
+    return {
+      approvedCount: Number(row?.approvedCount ?? 0),
+      approvedTotalWeight: Number(row?.approvedTotalWeight ?? 0),
+      approvedTotalAmount: Number(row?.approvedTotalAmount ?? 0),
+      pendingCount: Number(row?.pendingCount ?? 0),
+      totalCount: Number(row?.totalCount ?? 0),
+    };
   }
 
   async findOne(

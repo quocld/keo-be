@@ -31,13 +31,17 @@ import { CreateHarvestAreaCostEntryDto } from '../../dto/create-harvest-area-cos
 import { UpdateHarvestAreaCostEntryDto } from '../../dto/update-harvest-area-cost-entry.dto';
 import { QueryHarvestAreaCostEntriesDto } from '../../dto/query-harvest-area-cost-entries.dto';
 import { QueryTripsByHarvestAreaDto } from '../../dto/query-trips-by-harvest-area.dto';
+import { QueryReceiptsByHarvestAreaDto } from '../../dto/query-receipts-by-harvest-area.dto';
+import { HarvestAreaReceiptSummaryDto } from '../../dto/harvest-area-receipt-summary.response.dto';
 import { HarvestAreaEntity } from '../../infrastructure/persistence/relational/entities/harvest-area.entity';
 import { HarvestAreaCostEntryEntity } from '../../infrastructure/persistence/relational/entities/harvest-area-cost-entry.entity';
+import { ReceiptEntity } from '../../infrastructure/persistence/relational/entities/receipt.entity';
 import { TripEntity } from '../../infrastructure/persistence/relational/entities/trip.entity';
 import { UserEntity } from '../../../users/infrastructure/persistence/relational/entities/user.entity';
 import { HarvestAreasService } from '../services/harvest-areas.service';
 import { HarvestAreaCostEntriesService } from '../services/harvest-area-cost-entries.service';
 import { TripsService } from '../services/trips.service';
+import { ReceiptsService } from '../services/receipts.service';
 import { InfinityPaginationResponse } from '../../../utils/dto/infinity-pagination-response.dto';
 import { InfinityPaginationResponseDto } from '../../../utils/dto/infinity-pagination-response.dto';
 
@@ -53,6 +57,7 @@ export class HarvestAreasController {
     private readonly harvestAreasService: HarvestAreasService,
     private readonly tripsService: TripsService,
     private readonly harvestAreaCostEntriesService: HarvestAreaCostEntriesService,
+    private readonly receiptsService: ReceiptsService,
   ) {}
 
   @ApiCreatedResponse({ type: HarvestAreaEntity })
@@ -98,6 +103,32 @@ export class HarvestAreasController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<UserEntity[]> {
     return this.harvestAreasService.findDriversForHarvestArea(request.user, id);
+  }
+
+  @ApiOkResponse({ type: InfinityPaginationResponse(ReceiptEntity) })
+  @Roles(RoleEnum.admin, RoleEnum.owner, RoleEnum.driver)
+  @Get(':id/receipts')
+  @HttpCode(HttpStatus.OK)
+  receiptsByHarvestArea(
+    @Request() request,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: QueryReceiptsByHarvestAreaDto,
+  ): Promise<InfinityPaginationResponseDto<ReceiptEntity>> {
+    return this.receiptsService.findManyByHarvestArea(request.user, id, query);
+  }
+
+  @ApiOkResponse({ type: HarvestAreaReceiptSummaryDto })
+  @Roles(RoleEnum.admin, RoleEnum.owner, RoleEnum.driver)
+  @Get(':id/receipt-summary')
+  @HttpCode(HttpStatus.OK)
+  receiptSummary(
+    @Request() request,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<HarvestAreaReceiptSummaryDto> {
+    return this.receiptsService.getReceiptSummaryByHarvestArea(
+      request.user,
+      id,
+    );
   }
 
   @ApiOkResponse({
