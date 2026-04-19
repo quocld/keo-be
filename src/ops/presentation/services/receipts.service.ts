@@ -543,13 +543,13 @@ export class ReceiptsService {
     const ownerId = harvestArea?.owner?.id;
     if (ownerId) {
       // Load driver name and station name for human-readable message.
-      const driverUser = await this.receiptsRepository.manager.findOne(
-        UserEntity,
-        {
-          where: { id: driverUserIdForReceipt },
-          select: ['firstName', 'lastName'],
-        },
-      );
+      // Note: findOne+select triggers a TypeORM DISTINCT alias bug when the entity
+      // has eager relations (UserEntity.photo), so use createQueryBuilder instead.
+      const driverUser = await this.receiptsRepository.manager
+        .createQueryBuilder(UserEntity, 'u')
+        .select(['u.firstName', 'u.lastName'])
+        .where('u.id = :id', { id: driverUserIdForReceipt })
+        .getOne();
       let stationName: string | null = null;
       if (weighingStationIdToUse) {
         const station = await this.weighingStationsRepository.findOne({
