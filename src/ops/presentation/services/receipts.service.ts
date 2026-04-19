@@ -30,6 +30,7 @@ import { InfinityPaginationResponseDto } from '../../../utils/dto/infinity-pagin
 import { NotificationsService } from '../../../notifications/presentation/services/notifications.service';
 import { WeighingStationsService } from './weighing-stations.service';
 import { HarvestAreasService } from './harvest-areas.service';
+import { UserEntity } from '../../../users/infrastructure/persistence/relational/entities/user.entity';
 
 function revenueFromReceiptAmount(amountStr: string): string {
   const a = Number(amountStr);
@@ -38,6 +39,33 @@ function revenueFromReceiptAmount(amountStr: string): string {
   }
   const cents = Math.round(a * 100);
   return (cents / 100).toFixed(2);
+}
+
+/** "12.5 tấn" / "13 tấn" */
+function fmtTons(val: number | string): string {
+  const n = Number(val);
+  if (!Number.isFinite(n)) return '';
+  const s = parseFloat(n.toFixed(3)).toString();
+  return `${s} tấn`;
+}
+
+/** "50 triệu" / "12.5 triệu" */
+function fmtMillions(val: number | string): string {
+  const n = Number(val);
+  if (!Number.isFinite(n)) return '';
+  const m = n / 1_000_000;
+  const s = m % 1 === 0 ? m.toFixed(0) : parseFloat(m.toFixed(2)).toString();
+  return `${s} triệu`;
+}
+
+function driverDisplayName(
+  user:
+    | { firstName?: string | null; lastName?: string | null }
+    | null
+    | undefined,
+): string {
+  const parts = [user?.firstName, user?.lastName].filter(Boolean);
+  return parts.length ? parts.join(' ') : 'Tài xế';
 }
 
 @Injectable()
@@ -514,12 +542,30 @@ export class ReceiptsService {
 
     const ownerId = harvestArea?.owner?.id;
     if (ownerId) {
-      const receiptCodeOrId = submitted.billCode ?? submitted.id;
+      // Load driver name and station name for human-readable message.
+      const driverUser = await this.receiptsRepository.manager.findOne(
+        UserEntity,
+        {
+          where: { id: driverUserIdForReceipt },
+          select: ['firstName', 'lastName'],
+        },
+      );
+      let stationName: string | null = null;
+      if (weighingStationIdToUse) {
+        const station = await this.weighingStationsRepository.findOne({
+          where: { id: weighingStationIdToUse },
+          select: ['name'],
+        });
+        stationName = station?.name ?? null;
+      }
+      const name = driverDisplayName(driverUser);
+      const stationPart = stationName ? ` tại ${stationName}` : '';
       await this.notificationsService.createNotificationAndEnqueue({
         userId: Number(ownerId),
-        title: 'Phiếu mới',
-        message: `Phiếu ${receiptCodeOrId} đã được tạo, đang chờ duyệt.`,
+        title: 'Phiếu cân mới',
+        message: `${name} vừa gửi ${fmtTons(dto.weight)}, ${fmtMillions(dto.amount)}${stationPart}`,
         type: 'receipt_created',
+        referenceId: submitted.id,
         pushData: {
           type: 'receipt_created',
           receiptId: submitted.id,
@@ -701,12 +747,14 @@ export class ReceiptsService {
 
     const driverId = receipt.driver?.id;
     if (driverId) {
-      const receiptCodeOrId = approved.billCode ?? approved.id;
+      const stationName = approved.weighingStation?.name ?? null;
+      const stationPart = stationName ? ` tại ${stationName}` : '';
       await this.notificationsService.createNotificationAndEnqueue({
         userId: Number(driverId),
-        title: 'Phiếu được duyệt',
-        message: `Phiếu ${receiptCodeOrId} đã được duyệt.`,
+        title: 'Phiếu cân được duyệt',
+        message: `Phiếu của bạn đã được duyệt: ${fmtTons(approved.weight)}, ${fmtMillions(approved.amount)}${stationPart}`,
         type: 'receipt_approved',
+        referenceId: approved.id,
         pushData: {
           type: 'receipt_approved',
           receiptId: approved.id,
@@ -754,14 +802,14 @@ export class ReceiptsService {
 
     const driverId = saved.driver?.id ?? receipt.driver?.id;
     if (driverId) {
-      const receiptCodeOrId = saved.billCode ?? saved.id;
       const reason = dto.rejectedReason?.trim();
-      const reasonText = reason ? ` Lý do: ${reason}` : '';
+      const reasonPart = reason ? ` Lý do: ${reason}` : '';
       await this.notificationsService.createNotificationAndEnqueue({
         userId: Number(driverId),
-        title: 'Phiếu bị từ chối',
-        message: `Phiếu ${receiptCodeOrId} bị từ chối.${reasonText}`,
+        title: 'Phiếu cân bị từ chối',
+        message: `Phiếu cân của bạn bị từ chối.${reasonPart}`,
         type: 'receipt_rejected',
+        referenceId: saved.id,
         pushData: {
           type: 'receipt_rejected',
           receiptId: saved.id,
