@@ -414,6 +414,18 @@ export class ReceiptsService {
       ? Number(actor.id)
       : Number(dto.driverUserId);
 
+    if (isDriver) {
+      const hasImage =
+        (dto.imageFileIds?.filter(Boolean).length ?? 0) > 0 ||
+        (dto.imageUrls?.filter((u) => u?.trim()).length ?? 0) > 0 ||
+        !!dto.receiptImageUrl?.trim();
+      if (!hasImage) {
+        throw new UnprocessableEntityException({
+          error: 'atLeastOneReceiptImage',
+        });
+      }
+    }
+
     const fileIds = dto.imageFileIds?.filter(Boolean) ?? [];
     const files = await this.filesService.findByIds(fileIds);
 

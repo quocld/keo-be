@@ -1,10 +1,5 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  ApiHideProperty,
-  ApiProperty,
-  ApiPropertyOptional,
-} from '@nestjs/swagger';
-import {
-  Allow,
   ArrayMaxSize,
   IsArray,
   IsDateString,
@@ -15,17 +10,10 @@ import {
   IsUrl,
   IsUUID,
   Min,
-  Validate,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { HasAtLeastOneReceiptImageConstraint } from './validators/has-at-least-one-receipt-image.validator';
 
 export class SubmitReceiptDto {
-  @ApiHideProperty()
-  @Validate(HasAtLeastOneReceiptImageConstraint)
-  @Allow()
-  _receiptImageRule?: unknown;
-
   @ApiPropertyOptional({ description: 'Optional: receipt belongs to a trip' })
   @IsOptional()
   @IsUUID()
