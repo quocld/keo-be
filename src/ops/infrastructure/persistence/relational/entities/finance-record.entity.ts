@@ -1,6 +1,5 @@
 import {
   Column,
-  CreateDateColumn,
   Entity,
   JoinColumn,
   OneToOne,
@@ -68,7 +67,7 @@ export class FinanceRecordEntity extends EntityRelationalHelper {
   })
   profit: string;
 
-  @CreateDateColumn({
+  @Column({
     name: 'calculated_at',
     type: 'timestamptz',
   })

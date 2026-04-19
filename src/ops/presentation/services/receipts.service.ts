@@ -653,6 +653,7 @@ export class ReceiptsService {
             costDriver: '0',
             costHarvest: '0',
             otherCost: '0',
+            calculatedAt: row.receiptDate,
           }),
         );
 
