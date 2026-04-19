@@ -972,6 +972,34 @@ export class AnalyticsService {
       profitSum: string;
     }>();
 
+    // For day-grouped reports, merge in operating costs from harvest_area_cost_entries.
+    // Driver scope does not see area-level operating costs.
+    const operatingCostByDay = new Map<string, number>();
+    const roleScope = this.resolveRoleScope(actor);
+    if (groupBy === 'day' && roleScope !== 'driver') {
+      const opQb = this.harvestAreaCostEntriesRepository
+        .createQueryBuilder('e')
+        .innerJoin('e.harvestArea', 'ha')
+        .where('e.incurred_at >= :from AND e.incurred_at <= :to', { from, to })
+        .select(
+          "TO_CHAR(date_trunc('day', e.incurred_at), 'YYYY-MM-DD')",
+          'day',
+        )
+        .addSelect('COALESCE(SUM(e.amount), 0)', 'opSum')
+        .groupBy("date_trunc('day', e.incurred_at)");
+
+      if (roleScope === 'owner') {
+        opQb.andWhere('ha.owner_id = :ownerId', {
+          ownerId: Number(actor.id),
+        });
+      }
+
+      const opRows = await opQb.getRawMany<{ day: string; opSum: string }>();
+      for (const row of opRows) {
+        operatingCostByDay.set(row.day, Number(row.opSum ?? 0));
+      }
+    }
+
     return {
       range,
       groupBy,
@@ -984,6 +1012,7 @@ export class AnalyticsService {
         costHarvestSum: Number(r.costHarvestSum ?? 0),
         otherCostSum: Number(r.otherCostSum ?? 0),
         profitSum: Number(r.profitSum ?? 0),
+        operatingCostSum: operatingCostByDay.get(r.group) ?? 0,
       })),
     };
   }
