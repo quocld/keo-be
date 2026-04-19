@@ -910,7 +910,7 @@ export class AnalyticsService {
       to,
     });
 
-    qb.addSelect('COUNT(DISTINCT r.id)', 'countReceipts');
+    qb.select('COUNT(DISTINCT r.id)', 'countReceipts');
     qb.addSelect('COALESCE(SUM(fr.revenue), 0)', 'revenueSum');
     qb.addSelect('COALESCE(SUM(fr.cost_driver), 0)', 'costDriverSum');
     qb.addSelect('COALESCE(SUM(fr.cost_harvest), 0)', 'costHarvestSum');
