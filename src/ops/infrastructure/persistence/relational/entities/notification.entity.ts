@@ -42,6 +42,14 @@ export class NotificationEntity extends EntityRelationalHelper {
   type: string | null;
 
   @Column({
+    name: 'reference_id',
+    type: String,
+    length: 100,
+    nullable: true,
+  })
+  referenceId: string | null;
+
+  @Column({
     name: 'is_read',
     type: 'boolean',
     default: false,

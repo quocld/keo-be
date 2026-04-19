@@ -13,6 +13,9 @@ export class NotificationInboxItemDto {
   @ApiPropertyOptional({ nullable: true })
   type: string | null;
 
+  @ApiPropertyOptional({ nullable: true })
+  referenceId: string | null;
+
   @ApiProperty()
   isRead: boolean;
 

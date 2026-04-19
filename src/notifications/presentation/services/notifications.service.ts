@@ -19,6 +19,8 @@ type CreateNotificationAndEnqueueArgs = {
   title: string;
   message: string;
   type: string | null;
+  /** ID of the related entity (e.g. receiptId) for deep-linking from the inbox. */
+  referenceId?: string | null;
   /**
    * Custom payload delivered to client when user taps the push.
    * Keep only IDs/short strings.
@@ -42,6 +44,7 @@ export class NotificationsService {
       title: args.title,
       message: args.message,
       type: args.type,
+      referenceId: args.referenceId ?? null,
       isRead: false,
     });
 
@@ -85,6 +88,7 @@ export class NotificationsService {
       title: n.title,
       message: n.message,
       type: n.type,
+      referenceId: n.referenceId ?? null,
       isRead: n.isRead,
       createdAt: n.createdAt,
     }));
